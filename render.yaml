@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: orion-api
+    env: docker
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile
+    rootDir: ./backend
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: https://orion-mvp.vercel.app
+      - key: API_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: orion-postgres
+          property: connectionString
+
+  - type: cron
+    name: orion-pipeline-daily
+    env: python
+    plan: starter
+    rootDir: ./backend
+    schedule: "0 6 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m pipeline.run_pipeline
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: orion-postgres
+          property: connectionString
+
+databases:
+  - name: orion-postgres
+    databaseName: orion
+    user: orion
