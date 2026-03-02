@@ -13,3 +13,4 @@ xarray==2025.1.2
 netCDF4==1.7.2
 pandas==2.2.3
 pyarrow==18.1.0
+pytest==8.3.4

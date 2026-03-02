@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Robust ERA5-Land full backfill runner.
+Robust ERA5-Land backfill runner.
 
-- Pulls 1950-2026 monthly data for Turkey bbox.
+- Pulls monthly data for Turkey bbox in either core or full variable profile.
 - Uses /jobs/era5/ingest endpoint.
 - Splits variables into groups to reduce CDS request failures.
 - Limits in-flight jobs (concurrency).
@@ -23,69 +23,8 @@ from typing import Any
 
 import requests
 
-
-ALL_VARIABLES = [
-    "2m_dewpoint_temperature",
-    "2m_temperature",
-    "skin_temperature",
-    "soil_temperature_level_1",
-    "soil_temperature_level_2",
-    "soil_temperature_level_3",
-    "soil_temperature_level_4",
-    "lake_bottom_temperature",
-    "lake_ice_depth",
-    "lake_ice_temperature",
-    "lake_mix_layer_depth",
-    "lake_mix_layer_temperature",
-    "lake_shape_factor",
-    "lake_total_layer_temperature",
-    "snow_albedo",
-    "snow_cover",
-    "snow_density",
-    "snow_depth",
-    "snow_depth_water_equivalent",
-    "snowfall",
-    "snowmelt",
-    "temperature_of_snow_layer",
-    "skin_reservoir_content",
-    "volumetric_soil_water_layer_1",
-    "volumetric_soil_water_layer_2",
-    "volumetric_soil_water_layer_3",
-    "volumetric_soil_water_layer_4",
-    "forecast_albedo",
-    "surface_latent_heat_flux",
-    "surface_net_solar_radiation",
-    "surface_net_thermal_radiation",
-    "surface_sensible_heat_flux",
-    "surface_solar_radiation_downwards",
-    "surface_thermal_radiation_downwards",
-    "evaporation_from_bare_soil",
-    "evaporation_from_open_water_surfaces_excluding_oceans",
-    "evaporation_from_the_top_of_canopy",
-    "evaporation_from_vegetation_transpiration",
-    "potential_evaporation",
-    "runoff",
-    "snow_evaporation",
-    "sub_surface_runoff",
-    "surface_runoff",
-    "total_evaporation",
-    "10m_u_component_of_wind",
-    "10m_v_component_of_wind",
-    "surface_pressure",
-    "total_precipitation",
-    "leaf_area_index_high_vegetation",
-    "leaf_area_index_low_vegetation",
-    "high_vegetation_cover",
-    "glacier_mask",
-    "lake_cover",
-    "low_vegetation_cover",
-    "lake_total_depth",
-    "geopotential",
-    "land_sea_mask",
-    "soil_type",
-    "type_of_high_vegetation",
-    "type_of_low_vegetation",
-]
+from app.era5_presets import CORE_VARIABLES, FULL_VARIABLES
+PROFILES = {"core": CORE_VARIABLES, "full": FULL_VARIABLES}
 
 
 SUCCESS_STATES = {"success", "success_with_warnings"}
@@ -190,6 +129,7 @@ def main() -> int:
         default="era5_full_backfill_state.json",
         help="Path for resumable local state JSON",
     )
+    parser.add_argument("--profile", choices=["core", "full"], default="full")
     args = parser.parse_args()
 
     bbox = {"north": 42, "west": 26, "south": 36, "east": 45}
@@ -198,7 +138,8 @@ def main() -> int:
     tasks_state: dict[str, Any] = state.setdefault("tasks", {})
 
     months = month_iter(args.start_month, args.end_month)
-    groups = chunked(ALL_VARIABLES, args.group_size)
+    variables = PROFILES[args.profile]
+    groups = chunked(variables, args.group_size)
 
     all_tasks: list[Task] = []
     for month in months:
@@ -209,7 +150,10 @@ def main() -> int:
     pending = [t for t in all_tasks if tasks_state.get(t.key, {}).get("status") not in ("success", "permanent_fail")]
     inflight: dict[str, str] = {}
 
-    print(f"Total tasks={len(all_tasks)} pending={len(pending)} groups={len(groups)} months={len(months)}")
+    print(
+        f"Profile={args.profile} vars={len(variables)} "
+        f"Total tasks={len(all_tasks)} pending={len(pending)} groups={len(groups)} months={len(months)}"
+    )
 
     while pending or inflight:
         while pending and len(inflight) < args.max_inflight:

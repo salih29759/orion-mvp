@@ -16,6 +16,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        # SQLite uses dynamic typing; INTEGER already stores 64-bit values.
+        return
     op.alter_column(
         "provinces",
         "insured_assets",
@@ -26,6 +30,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        return
     op.alter_column(
         "provinces",
         "insured_assets",

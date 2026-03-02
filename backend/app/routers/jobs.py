@@ -15,6 +15,7 @@ from app.models import (
 )
 from pipeline.era5_ingestion import (
     Era5Request,
+    get_backfill_status,
     get_era5_features,
     get_job,
     kick_queued_jobs,
@@ -97,12 +98,12 @@ async def queue_era5_ingest(
     )
 
 
-@router.get(
-    "/{job_id}",
-    response_model=JobStatusResponse,
-    summary="Get asynchronous ERA5 ingestion job status",
-)
+@router.get("/{job_id}", summary="Get asynchronous ERA5 ingestion/backfill job status")
 async def job_status(job_id: str, _: str = Depends(verify_token)):
+    # Backfill status (with child jobs)
+    bf = get_backfill_status(job_id, include_items=True)
+    if bf:
+        return bf
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")

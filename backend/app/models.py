@@ -1,10 +1,11 @@
 from datetime import date, datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 from app.config import settings
+from app.era5_presets import variables_for_profile
 
 
 # ---------------------------------------------------------------------------
@@ -148,15 +149,8 @@ class PortfolioAnalyzeResponse(BaseResponse):
 
 class Era5IngestRequest(BaseModel):
     dataset: str = "era5-land"
-    variables: list[str] = Field(
-        default_factory=lambda: [
-            "2m_temperature",
-            "total_precipitation",
-            "10m_u_component_of_wind",
-            "10m_v_component_of_wind",
-            "volumetric_soil_water_layer_1",
-        ]
-    )
+    variable_profile: Literal["core", "full"] = "core"
+    variables: list[str] | None = None
     start_date: date
     end_date: date
     bbox: dict[str, float] = Field(
@@ -175,6 +169,10 @@ class Era5IngestRequest(BaseModel):
             raise ValueError("dataset must be 'era5-land' or 'reanalysis-era5-land'")
         if self.format not in {"netcdf"}:
             raise ValueError("format must be 'netcdf'")
+        if self.variables and len(self.variables) == 0:
+            raise ValueError("variables cannot be empty")
+        if not self.variables:
+            self.variables = variables_for_profile(self.variable_profile)
         return self
 
 
@@ -226,17 +224,11 @@ class Era5BackfillRequest(BaseModel):
     bbox: dict[str, float] = Field(
         default_factory=lambda: {"north": 42.0, "west": 26.0, "south": 36.0, "east": 45.0}
     )
-    variables: list[str] = Field(
-        default_factory=lambda: [
-            "2m_temperature",
-            "total_precipitation",
-            "10m_u_component_of_wind",
-            "10m_v_component_of_wind",
-            "volumetric_soil_water_layer_1",
-        ]
-    )
+    variable_profile: Literal["core", "full"] = "core"
+    variables: list[str] | None = None
     mode: str = "monthly"
     dataset: str = "era5-land"
+    concurrency: int = Field(default=2, ge=1, le=5)
 
     @model_validator(mode="after")
     def validate_months(self):
@@ -246,6 +238,10 @@ class Era5BackfillRequest(BaseModel):
             raise ValueError("start_month must be <= end_month")
         if self.mode != "monthly":
             raise ValueError("mode must be 'monthly'")
+        if self.variables and len(self.variables) == 0:
+            raise ValueError("variables cannot be empty")
+        if not self.variables:
+            self.variables = variables_for_profile(self.variable_profile)
         return self
 
 
@@ -265,6 +261,7 @@ class Era5BackfillStatusResponse(BaseModel):
     months_success: int
     months_failed: int
     failed_months: list[str]
+    child_jobs: list[dict[str, Any]] | None = None
     created_at: datetime
     finished_at: datetime | None
 
@@ -287,6 +284,8 @@ class PortfolioExportRequest(BaseModel):
     start_date: date
     end_date: date
     format: str = "csv"
+    include_drivers: bool = True
+    climatology_version: str = "v1_baseline_2015_2024"
     assets: list[AssetPoint] = Field(default_factory=list)
 
 
@@ -295,3 +294,58 @@ class PortfolioExportResponse(BaseModel):
     export_id: str
     row_count: int
     export_url: str | None = None
+
+
+class ClimatologyBuildRequest(BaseModel):
+    climatology_version: str = "v1_baseline_2015_2024"
+    baseline_start: date
+    baseline_end: date
+    level: Literal["month"] = "month"
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.baseline_start > self.baseline_end:
+            raise ValueError("baseline_start must be <= baseline_end")
+        return self
+
+
+class ClimatologyBuildResponse(BaseModel):
+    status: str
+    run_id: str
+    climatology_version: str
+    row_count: int
+    thresholds_gcs_uri: str | None = None
+
+
+class ScoreBatchRequest(BaseModel):
+    assets: list[AssetPoint]
+    start_date: date
+    end_date: date
+    climatology_version: str = "v1_baseline_2015_2024"
+    persist: bool = True
+
+
+class ScorePoint(BaseModel):
+    date: date
+    peril: str
+    score_0_100: int
+    band: str
+    exposure: dict[str, Any]
+    drivers: list[str]
+
+
+class ScoreBatchResponse(BaseModel):
+    status: str
+    run_id: str
+    climatology_version: str
+    assets: dict[str, list[ScorePoint]]
+
+
+class PortfolioRiskSummaryResponse(BaseModel):
+    status: str
+    portfolio_id: str
+    start_date: date
+    end_date: date
+    distribution: dict[str, dict[str, int]]
+    top_10_assets: list[dict[str, Any]]
+    trend_summary: dict[str, Any]

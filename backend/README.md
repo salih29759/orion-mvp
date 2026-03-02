@@ -43,19 +43,17 @@ Example body:
 ```json
 {
   "dataset": "era5-land",
-  "variables": [
-    "2m_temperature",
-    "total_precipitation",
-    "10m_u_component_of_wind",
-    "10m_v_component_of_wind",
-    "volumetric_soil_water_layer_1"
-  ],
+  "variable_profile": "core",
   "start_date": "2024-01-01",
   "end_date": "2024-01-31",
   "bbox": {"north": 42, "west": 26, "south": 36, "east": 45},
   "format": "netcdf"
 }
 ```
+
+Notes:
+- `variable_profile`: `core` (default, 5 variables) or `full` (all ERA5-Land variables).
+- You can still pass explicit `variables` to override presets.
 
 Check job status:
 
@@ -65,6 +63,7 @@ Backfill orchestrator:
 
 - `POST /jobs/era5/backfill`
 - `GET /jobs/era5/backfill/{backfill_id}`
+- `GET /jobs/era5/variable-profiles`
 
 Daily incremental update (scheduler):
 
@@ -83,6 +82,18 @@ Metrics:
 
 - `GET /health/metrics` (requires `x-cron-secret`)
 
+Climatology build:
+
+- `POST /climatology/build`
+
+Batch scoring:
+
+- `POST /scores/batch`
+
+Portfolio summary:
+
+- `GET /portfolios/{portfolio_id}/risk-summary?start=YYYY-MM-DD&end=YYYY-MM-DD`
+
 Unified historical/current climate series:
 
 `GET /jobs/climate/series?lat=...&lng=...&start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
@@ -100,6 +111,67 @@ cd backend
   orion-dev-key-2024 \
   2024 \
   01
+```
+
+Two-phase production backfill (recommended):
+
+```bash
+cd backend
+API_KEY=orion-dev-key-2024 ./scripts/era5_two_phase_backfill.sh
+```
+
+Or manually with resumable script:
+
+```bash
+cd backend
+python scripts/era5_full_backfill.py --api-key "$API_KEY" --profile core --start-month 2010-01 --end-month 2026-12 --group-size 5 --max-inflight 2 --state-file era5_core_state.json
+python scripts/era5_full_backfill.py --api-key "$API_KEY" --profile full --start-month 1950-01 --end-month 2009-12 --group-size 10 --max-inflight 1 --state-file era5_full_archive_state.json
+```
+
+Underwriting MVP baseline backfill (2015-2024):
+
+```bash
+curl -X POST "https://orion-api-126886725893.europe-west1.run.app/jobs/era5/backfill" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start_month":"2015-01",
+    "end_month":"2024-12",
+    "bbox":{"north":42,"west":26,"south":36,"east":45},
+    "variable_profile":"core",
+    "mode":"monthly",
+    "dataset":"era5-land",
+    "concurrency":2
+  }'
+```
+
+Build monthly climatology from baseline:
+
+```bash
+curl -X POST "https://orion-api-126886725893.europe-west1.run.app/climatology/build" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "climatology_version":"v1_baseline_2015_2024",
+    "baseline_start":"2015-01-01",
+    "baseline_end":"2024-12-31",
+    "level":"month"
+  }'
+```
+
+Batch scoring (100 assets style):
+
+```bash
+curl -X POST "https://orion-api-126886725893.europe-west1.run.app/scores/batch" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assets":[{"id":"ist-1","lat":41.01,"lon":28.97},{"id":"ank-1","lat":39.93,"lon":32.85}],
+    "start_date":"2024-01-01",
+    "end_date":"2024-03-31",
+    "climatology_version":"v1_baseline_2015_2024",
+    "persist": true
+  }'
 ```
 
 ## CDS / ERA5 smoke test

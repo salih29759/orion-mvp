@@ -94,6 +94,79 @@ def ensure_ops_schema(db: Session) -> None:
         """,
         "CREATE INDEX IF NOT EXISTS ix_export_jobs_portfolio_id ON export_jobs(portfolio_id)",
         "CREATE INDEX IF NOT EXISTS ix_export_jobs_status ON export_jobs(status)",
+        """
+        CREATE TABLE IF NOT EXISTS climatology_runs (
+            run_id VARCHAR(64) PRIMARY KEY,
+            climatology_version VARCHAR(128) NOT NULL UNIQUE,
+            dataset VARCHAR(128) NOT NULL,
+            baseline_start DATE NOT NULL,
+            baseline_end DATE NOT NULL,
+            level VARCHAR(16) NOT NULL,
+            status VARCHAR(16) NOT NULL,
+            row_count INTEGER NOT NULL DEFAULT 0,
+            thresholds_gcs_uri TEXT NULL,
+            error TEXT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_climatology_runs_status ON climatology_runs(status)",
+        """
+        CREATE TABLE IF NOT EXISTS climatology_thresholds (
+            id SERIAL PRIMARY KEY,
+            climatology_version VARCHAR(128) NOT NULL,
+            cell_lat DOUBLE PRECISION NOT NULL,
+            cell_lng DOUBLE PRECISION NOT NULL,
+            month INTEGER NOT NULL,
+            temp_max_p95 DOUBLE PRECISION NULL,
+            wind_max_p95 DOUBLE PRECISION NULL,
+            precip_1d_p95 DOUBLE PRECISION NULL,
+            precip_1d_p99 DOUBLE PRECISION NULL,
+            precip_7d_p95 DOUBLE PRECISION NULL,
+            precip_7d_p99 DOUBLE PRECISION NULL,
+            precip_30d_p10 DOUBLE PRECISION NULL,
+            soil_moisture_p10 DOUBLE PRECISION NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_clim_version_cell_month UNIQUE (climatology_version, cell_lat, cell_lng, month)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_climatology_thresholds_version ON climatology_thresholds(climatology_version)",
+        "CREATE INDEX IF NOT EXISTS ix_climatology_thresholds_month ON climatology_thresholds(month)",
+        """
+        CREATE TABLE IF NOT EXISTS asset_risk_scores (
+            id SERIAL PRIMARY KEY,
+            asset_id VARCHAR(128) NOT NULL,
+            score_date DATE NOT NULL,
+            peril VARCHAR(32) NOT NULL,
+            scenario VARCHAR(32) NOT NULL,
+            horizon VARCHAR(32) NOT NULL,
+            likelihood VARCHAR(32) NOT NULL,
+            score_0_100 INTEGER NOT NULL,
+            band VARCHAR(16) NOT NULL,
+            exposure_json TEXT NOT NULL,
+            drivers_json TEXT NOT NULL,
+            run_id VARCHAR(64) NOT NULL,
+            climatology_version VARCHAR(128) NOT NULL,
+            data_version VARCHAR(128) NOT NULL DEFAULT 'era5_daily_v1',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_asset_risk_score_dim UNIQUE (asset_id, score_date, peril, scenario, horizon, likelihood)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_asset_risk_scores_asset_id ON asset_risk_scores(asset_id)",
+        "CREATE INDEX IF NOT EXISTS ix_asset_risk_scores_score_date ON asset_risk_scores(score_date)",
+        "CREATE INDEX IF NOT EXISTS ix_asset_risk_scores_peril ON asset_risk_scores(peril)",
+        "CREATE INDEX IF NOT EXISTS ix_asset_risk_scores_run_id ON asset_risk_scores(run_id)",
+        """
+        CREATE TABLE IF NOT EXISTS portfolio_assets (
+            id SERIAL PRIMARY KEY,
+            portfolio_id VARCHAR(128) NOT NULL,
+            asset_id VARCHAR(128) NOT NULL,
+            lat DOUBLE PRECISION NOT NULL,
+            lon DOUBLE PRECISION NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_portfolio_asset UNIQUE (portfolio_id, asset_id)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_portfolio_assets_portfolio_id ON portfolio_assets(portfolio_id)",
     ]
     for stmt in stmts:
         db.execute(text(stmt))

@@ -159,3 +159,84 @@ class ExportJobORM(Base):
     signed_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class ClimatologyRunORM(Base):
+    __tablename__ = "climatology_runs"
+
+    run_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    climatology_version: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    dataset: Mapped[str] = mapped_column(String(128), nullable=False, default="era5-land")
+    baseline_start: Mapped[date] = mapped_column(Date, nullable=False)
+    baseline_end: Mapped[date] = mapped_column(Date, nullable=False)
+    level: Mapped[str] = mapped_column(String(16), nullable=False, default="month")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True, default="success")
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    thresholds_gcs_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class ClimatologyThresholdORM(Base):
+    __tablename__ = "climatology_thresholds"
+    __table_args__ = (
+        UniqueConstraint("climatology_version", "cell_lat", "cell_lng", "month", name="uq_clim_version_cell_month"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    climatology_version: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    cell_lat: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    cell_lng: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    month: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    temp_max_p95: Mapped[float | None] = mapped_column(Float, nullable=True)
+    wind_max_p95: Mapped[float | None] = mapped_column(Float, nullable=True)
+    precip_1d_p95: Mapped[float | None] = mapped_column(Float, nullable=True)
+    precip_1d_p99: Mapped[float | None] = mapped_column(Float, nullable=True)
+    precip_7d_p95: Mapped[float | None] = mapped_column(Float, nullable=True)
+    precip_7d_p99: Mapped[float | None] = mapped_column(Float, nullable=True)
+    precip_30d_p10: Mapped[float | None] = mapped_column(Float, nullable=True)
+    soil_moisture_p10: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class AssetRiskScoreORM(Base):
+    __tablename__ = "asset_risk_scores"
+    __table_args__ = (
+        UniqueConstraint(
+            "asset_id",
+            "score_date",
+            "peril",
+            "scenario",
+            "horizon",
+            "likelihood",
+            name="uq_asset_risk_score_dim",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    score_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    peril: Mapped[str] = mapped_column(String(32), nullable=False, index=True)  # heat|rain|wind|drought
+    scenario: Mapped[str] = mapped_column(String(32), nullable=False, default="historical", index=True)
+    horizon: Mapped[str] = mapped_column(String(32), nullable=False, default="current")
+    likelihood: Mapped[str] = mapped_column(String(32), nullable=False, default="observed")
+    score_0_100: Mapped[int] = mapped_column(Integer, nullable=False)
+    band: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    exposure_json: Mapped[str] = mapped_column(Text, nullable=False)
+    drivers_json: Mapped[str] = mapped_column(Text, nullable=False)
+    run_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    climatology_version: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    data_version: Mapped[str] = mapped_column(String(128), nullable=False, default="era5_daily_v1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class PortfolioAssetORM(Base):
+    __tablename__ = "portfolio_assets"
+    __table_args__ = (UniqueConstraint("portfolio_id", "asset_id", name="uq_portfolio_asset"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    portfolio_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    asset_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    lat: Mapped[float] = mapped_column(Float, nullable=False)
+    lon: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

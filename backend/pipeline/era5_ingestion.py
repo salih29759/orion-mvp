@@ -246,11 +246,21 @@ def _build_daily_features(nc_path: Path, out_parquet: Path) -> DailyFeatureBuild
     data = xr.Dataset()
     if "2m_temperature" in vars_present:
         t2m = ds["2m_temperature"]
-        data["temp_mean"] = t2m.resample(time="1D").mean() - 273.15
-        data["temp_max"] = t2m.resample(time="1D").max() - 273.15
+        t_mean = t2m.resample(time="1D").mean()
+        t_max = t2m.resample(time="1D").max()
+        # Convert Kelvin to Celsius only when values indicate Kelvin.
+        if float(t_mean.quantile(0.5).values) > 150:
+            t_mean = t_mean - 273.15
+            t_max = t_max - 273.15
+        data["temp_mean"] = t_mean
+        data["temp_max"] = t_max
     if "total_precipitation" in vars_present:
         tp = ds["total_precipitation"]
-        data["precip_sum"] = tp.resample(time="1D").sum() * 1000.0
+        p_sum = tp.resample(time="1D").sum()
+        # ERA5 tp is typically meters; convert to mm for canonical storage.
+        if float(p_sum.quantile(0.99).values) <= 5.0:
+            p_sum = p_sum * 1000.0
+        data["precip_sum"] = p_sum
     if "10m_u_component_of_wind" in vars_present and "10m_v_component_of_wind" in vars_present:
         wind = (ds["10m_u_component_of_wind"] ** 2 + ds["10m_v_component_of_wind"] ** 2) ** 0.5
         data["wind_max"] = wind.resample(time="1D").max()
@@ -381,7 +391,7 @@ def submit_era5_job(req: Era5Request, *, enforce_limit: bool = True) -> tuple[st
 
 
 def process_era5_job(job_id: str) -> None:
-    final_status = "failed" if error else "success"
+    final_status = "running"
     with SessionLocal() as db:
         job = db.get(Era5IngestJobORM, job_id)
         if not job:
@@ -644,7 +654,15 @@ def _iter_month_ranges(start_month: str, end_month: str) -> list[tuple[str, date
     return out
 
 
-def submit_backfill(start_month: str, end_month: str, bbox: tuple[float, float, float, float], variables: list[str], mode: str, dataset: str) -> tuple[str, bool, int]:
+def submit_backfill(
+    start_month: str,
+    end_month: str,
+    bbox: tuple[float, float, float, float],
+    variables: list[str],
+    mode: str,
+    dataset: str,
+    concurrency: int = 2,
+) -> tuple[str, bool, int]:
     req_sig = sha256(
         json.dumps(
             {
@@ -654,6 +672,7 @@ def submit_backfill(start_month: str, end_month: str, bbox: tuple[float, float, 
                 "variables": sorted(variables),
                 "mode": mode,
                 "dataset": dataset,
+                "concurrency": concurrency,
             },
             sort_keys=True,
         ).encode("utf-8")
@@ -686,13 +705,34 @@ def submit_backfill(start_month: str, end_month: str, bbox: tuple[float, float, 
         # Commit parent row first so child inserts never hit FK races/order issues.
         db.commit()
         for month_label, s, e in ranges:
-            req = Era5Request(start_date=s, end_date=e, bbox=bbox, variables=variables, dataset=dataset, out_format="netcdf")
-            job_id, _ = submit_era5_job(req, enforce_limit=False)
+            job_id: str | None = None
             job_status = "queued"
             with SessionLocal() as jdb:
-                ingest = jdb.get(Era5IngestJobORM, job_id)
-                if ingest and ingest.status:
-                    job_status = ingest.status
+                done = jdb.execute(
+                    select(Era5IngestJobORM)
+                    .where(
+                        Era5IngestJobORM.dataset == dataset,
+                        Era5IngestJobORM.start_date == s,
+                        Era5IngestJobORM.end_date == e,
+                        Era5IngestJobORM.bbox_csv == ",".join(str(x) for x in bbox),
+                        Era5IngestJobORM.variables_csv == ",".join(variables),
+                        Era5IngestJobORM.status.in_(["success", "success_with_warnings"]),
+                        Era5IngestJobORM.raw_files > 0,
+                        Era5IngestJobORM.feature_files > 0,
+                    )
+                    .order_by(desc(Era5IngestJobORM.created_at))
+                    .limit(1)
+                ).scalar_one_or_none()
+                if done:
+                    job_id = done.job_id
+                    job_status = done.status
+            if job_id is None:
+                req = Era5Request(start_date=s, end_date=e, bbox=bbox, variables=variables, dataset=dataset, out_format="netcdf")
+                job_id, _ = submit_era5_job(req, enforce_limit=False)
+                with SessionLocal() as jdb:
+                    ingest = jdb.get(Era5IngestJobORM, job_id)
+                    if ingest and ingest.status:
+                        job_status = ingest.status
             db.add(
                 Era5BackfillItemORM(
                     backfill_id=backfill_id,
@@ -708,7 +748,7 @@ def submit_backfill(start_month: str, end_month: str, bbox: tuple[float, float, 
         return backfill_id, False, len(ranges)
 
 
-def get_backfill_status(backfill_id: str) -> dict | None:
+def get_backfill_status(backfill_id: str, include_items: bool = True) -> dict | None:
     with SessionLocal() as db:
         bf = db.get(Era5BackfillJobORM, backfill_id)
         if not bf:
@@ -743,6 +783,18 @@ def get_backfill_status(backfill_id: str) -> dict | None:
             bf.status = "finished"
             bf.finished_at = datetime.now(timezone.utc)
         db.commit()
+        child_jobs = None
+        if include_items:
+            child_jobs = [
+                {
+                    "month": it.month_label,
+                    "job_id": it.job_id,
+                    "status": it.status,
+                    "error": it.error,
+                    "finished_at": it.finished_at,
+                }
+                for it in items
+            ]
         return {
             "status": bf.status,
             "backfill_id": bf.backfill_id,
@@ -752,6 +804,7 @@ def get_backfill_status(backfill_id: str) -> dict | None:
             "months_success": bf.months_success,
             "months_failed": bf.months_failed,
             "failed_months": failed,
+            "child_jobs": child_jobs,
             "created_at": bf.created_at,
             "finished_at": bf.finished_at,
         }
