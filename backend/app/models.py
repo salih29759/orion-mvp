@@ -2,7 +2,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.config import settings
 
@@ -21,6 +21,7 @@ class RiskLevel(str, Enum):
 class RiskType(str, Enum):
     FLOOD = "FLOOD"
     DROUGHT = "DROUGHT"
+    WILDFIRE = "WILDFIRE"
 
 
 class Trend(str, Enum):
@@ -143,3 +144,154 @@ class PortfolioAnalysis(BaseModel):
 
 class PortfolioAnalyzeResponse(BaseResponse):
     data: PortfolioAnalysis
+
+
+class Era5IngestRequest(BaseModel):
+    dataset: str = "era5-land"
+    variables: list[str] = Field(
+        default_factory=lambda: [
+            "2m_temperature",
+            "total_precipitation",
+            "10m_u_component_of_wind",
+            "10m_v_component_of_wind",
+            "volumetric_soil_water_layer_1",
+        ]
+    )
+    start_date: date
+    end_date: date
+    bbox: dict[str, float] = Field(
+        default_factory=lambda: {"north": 42.0, "west": 26.0, "south": 36.0, "east": 45.0}
+    )
+    format: str = "netcdf"
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.start_date > self.end_date:
+            raise ValueError("start_date must be <= end_date")
+        required_bbox = {"north", "west", "south", "east"}
+        if set(self.bbox.keys()) != required_bbox:
+            raise ValueError("bbox must contain exactly: north, west, south, east")
+        if self.dataset not in {"era5-land", "reanalysis-era5-land"}:
+            raise ValueError("dataset must be 'era5-land' or 'reanalysis-era5-land'")
+        if self.format not in {"netcdf"}:
+            raise ValueError("format must be 'netcdf'")
+        return self
+
+
+class Era5IngestResponse(BaseModel):
+    status: str
+    job_id: str
+    deduplicated: bool
+    request_signature: str
+
+
+class JobStatusResponse(BaseModel):
+    status: str
+    job_id: str
+    request_signature: str
+    dataset: str
+    variables: list[str]
+    bbox: list[float]
+    start_date: date
+    end_date: date
+    rows_written: int
+    bytes_downloaded: int
+    raw_files: int
+    feature_files: int
+    dq_status: str | None = None
+    dq_report: list[dict[str, Any]] | None = None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    error: str | None
+
+
+class ClimatePoint(BaseModel):
+    date: date
+    temp_mean: float | None = None
+    temp_max: float | None = None
+    precip_sum: float | None = None
+    wind_max: float | None = None
+    soil_moisture_mean: float | None = None
+    source: str
+
+
+class ClimateSeriesResponse(BaseResponse):
+    data: list[ClimatePoint]
+
+
+class Era5BackfillRequest(BaseModel):
+    start_month: str = Field(examples=["2018-01"])
+    end_month: str = Field(examples=["2024-12"])
+    bbox: dict[str, float] = Field(
+        default_factory=lambda: {"north": 42.0, "west": 26.0, "south": 36.0, "east": 45.0}
+    )
+    variables: list[str] = Field(
+        default_factory=lambda: [
+            "2m_temperature",
+            "total_precipitation",
+            "10m_u_component_of_wind",
+            "10m_v_component_of_wind",
+            "volumetric_soil_water_layer_1",
+        ]
+    )
+    mode: str = "monthly"
+    dataset: str = "era5-land"
+
+    @model_validator(mode="after")
+    def validate_months(self):
+        if len(self.start_month) != 7 or len(self.end_month) != 7:
+            raise ValueError("start_month/end_month must be YYYY-MM")
+        if self.start_month > self.end_month:
+            raise ValueError("start_month must be <= end_month")
+        if self.mode != "monthly":
+            raise ValueError("mode must be 'monthly'")
+        return self
+
+
+class Era5BackfillResponse(BaseModel):
+    status: str
+    backfill_id: str
+    deduplicated: bool
+    months_total: int
+
+
+class Era5BackfillStatusResponse(BaseModel):
+    status: str
+    backfill_id: str
+    start_month: str
+    end_month: str
+    months_total: int
+    months_success: int
+    months_failed: int
+    failed_months: list[str]
+    created_at: datetime
+    finished_at: datetime | None
+
+
+class AssetPoint(BaseModel):
+    id: str
+    lat: float
+    lon: float
+
+
+class Era5BatchFeatureRequest(BaseModel):
+    assets: list[AssetPoint]
+    start_date: date
+    end_date: date
+
+
+class PortfolioExportRequest(BaseModel):
+    portfolio_id: str
+    scenario: str = "historical"
+    start_date: date
+    end_date: date
+    format: str = "csv"
+    assets: list[AssetPoint] = Field(default_factory=list)
+
+
+class PortfolioExportResponse(BaseModel):
+    status: str
+    export_id: str
+    row_count: int
+    export_url: str | None = None

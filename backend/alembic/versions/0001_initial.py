@@ -25,7 +25,7 @@ def upgrade() -> None:
         sa.Column("lat", sa.Float(), nullable=False),
         sa.Column("lng", sa.Float(), nullable=False),
         sa.Column("population", sa.Integer(), nullable=False),
-        sa.Column("insured_assets", sa.Integer(), nullable=False),
+        sa.Column("insured_assets", sa.BigInteger(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )

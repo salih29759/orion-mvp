@@ -38,7 +38,8 @@ async def list_active_alerts(
 ):
     rows = repo_list_active_alerts(db, level=level.value if level else None, limit=limit)
     alerts = [_to_alert(row) for row in rows]
-    data_source = "open-meteo" if alerts else None
+    has_wildfire = any(a.risk_type == "WILDFIRE" for a in alerts)
+    data_source = "open-meteo+firms" if has_wildfire else ("open-meteo" if alerts else None)
 
     return AlertsResponse(
         data=alerts,

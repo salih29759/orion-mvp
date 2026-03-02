@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import Base, engine
+from app.database import SessionLocal
+from app.bootstrap import ensure_ops_schema, ensure_provinces_seeded
 from app import orm  # noqa: F401
-from app.routers import alerts, health, portfolio, provinces
+from app.routers import alerts, era5_ops, health, internal, jobs, portfolio, provinces
 
 app = FastAPI(
     title="Orion Labs Climate Risk API",
@@ -32,6 +34,7 @@ app = FastAPI(
         {"name": "Risk", "description": "Province-level climate risk scores"},
         {"name": "Alerts", "description": "Active climate event alerts"},
         {"name": "Portfolio", "description": "Portfolio exposure analysis"},
+        {"name": "Jobs", "description": "Asynchronous ingestion and climate feature jobs"},
     ],
 )
 
@@ -48,8 +51,14 @@ app.add_middleware(
 def startup() -> None:
     # Keeps local/dev environments self-contained; prod should still run migrations.
     Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        ensure_ops_schema(db)
+        ensure_provinces_seeded(db)
 
 app.include_router(health.router, tags=["Health"])
 app.include_router(provinces.router, prefix="/v1/risk", tags=["Risk"])
 app.include_router(alerts.router, prefix="/v1/alerts", tags=["Alerts"])
 app.include_router(portfolio.router, prefix="/v1/portfolio", tags=["Portfolio"])
+app.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
+app.include_router(internal.router, prefix="/internal", tags=["Internal"])
+app.include_router(era5_ops.router, tags=["ERA5 Ops"])

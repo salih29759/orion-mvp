@@ -6,7 +6,7 @@ const API_BASE = process.env.NEXT_PUBLIC_ORION_API_BASE || "/api/orion";
 
 export type RiskLevel = "HIGH" | "MEDIUM" | "LOW";
 export type AlertLevel = "HIGH" | "MEDIUM";
-export type RiskType = "FLOOD" | "DROUGHT";
+export type RiskType = "FLOOD" | "DROUGHT" | "WILDFIRE";
 export type Trend = "UP" | "DOWN" | "STABLE";
 
 export interface Province {

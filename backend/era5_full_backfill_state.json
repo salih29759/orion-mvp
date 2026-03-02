@@ -1,0 +1,337 @@
+{
+  "tasks": {
+    "1950-01|g1": {
+      "job_id": "17a0b659-7e3f-4b0a-8d32-dbf475f5b5a4",
+      "last_submit_ts": 1772422239,
+      "retries": 0,
+      "status": "running"
+    },
+    "1950-01|g2": {
+      "job_id": "ffd33d85-548c-4a18-829b-808f017a9b5f",
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "last_submit_ts": 1772422239,
+      "retries": 1,
+      "status": "running"
+    },
+    "1950-01|g3": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "queue_wait"
+    },
+    "1950-01|g4": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-01|g5": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-01|g6": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-02|g1": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-02|g2": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-02|g3": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-02|g4": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-02|g5": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-02|g6": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-03|g1": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-03|g2": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-03|g3": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-03|g4": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-03|g5": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-03|g6": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-04|g1": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-04|g2": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-04|g3": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-04|g4": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-04|g5": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-04|g6": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-05|g1": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-05|g2": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-05|g3": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-05|g4": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-05|g5": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-05|g6": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-06|g1": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-06|g2": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-06|g3": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-06|g4": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-06|g5": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-06|g6": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-07|g1": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-07|g2": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-07|g3": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-07|g4": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-07|g5": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-07|g6": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-08|g1": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-08|g2": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-08|g3": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-08|g4": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-08|g5": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-08|g6": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-09|g1": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-09|g2": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-09|g3": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-09|g4": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-09|g5": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-09|g6": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-10|g1": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-10|g2": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-10|g3": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-10|g4": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-10|g5": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-10|g6": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-11|g1": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-11|g2": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-11|g3": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-11|g4": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-11|g5": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    },
+    "1950-11|g6": {
+      "last_error": "submit failed 429: {\"detail\":\"ERA5 job concurrency limit reached\"}",
+      "retries": 1,
+      "status": "retry_pending"
+    }
+  }
+}

@@ -84,10 +84,6 @@ RAW_PROVINCES: list[tuple[int, str, str, float, float, int, int, int]] = [
     (81, "Düzce",           "Karadeniz",            40.84, 31.16, 75, 28, 412804),
 ]
 
-TREND_CYCLE = ["UP", "DOWN", "STABLE"]
-TREND_PCTS = [4.2, 2.8, 6.1, 1.5, 3.3, 2.0, 5.7, 1.1, 4.8, 3.9]
-
-
 def risk_level(score: int) -> str:
     if score >= 75:
         return "HIGH"
