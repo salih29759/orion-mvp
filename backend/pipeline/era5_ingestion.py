@@ -42,6 +42,11 @@ class Era5Request:
     variables: list[str]
     dataset: str
     out_format: str = "netcdf"
+    provider: str = "cds"
+    mode: str = "bbox"
+    points_set: str | None = None
+    month_label: str | None = None
+    source_range_json: str | None = None
 
 
 @dataclass
@@ -76,6 +81,10 @@ def request_signature(req: Era5Request) -> str:
         "start_date": req.start_date.isoformat(),
         "end_date": req.end_date.isoformat(),
         "format": req.out_format,
+        "provider": req.provider,
+        "mode": req.mode,
+        "points_set": req.points_set,
+        "month_label": req.month_label,
     }
     return sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
@@ -382,6 +391,11 @@ def submit_era5_job(req: Era5Request, *, enforce_limit: bool = True) -> tuple[st
                 dataset=req.dataset,
                 variables_csv=",".join(req.variables),
                 bbox_csv=",".join(str(x) for x in req.bbox),
+                provider=req.provider,
+                mode=req.mode,
+                points_set=req.points_set,
+                month_label=req.month_label,
+                source_range_json=req.source_range_json,
                 start_date=req.start_date,
                 end_date=req.end_date,
             )
@@ -392,13 +406,24 @@ def submit_era5_job(req: Era5Request, *, enforce_limit: bool = True) -> tuple[st
 
 def process_era5_job(job_id: str) -> None:
     final_status = "running"
+    provider = "cds"
     with SessionLocal() as db:
         job = db.get(Era5IngestJobORM, job_id)
         if not job:
             return
+        provider = job.provider or "cds"
         job.status = "running"
         job.started_at = datetime.now(timezone.utc)
         db.commit()
+
+    if provider == "aws_nsf_ncar":
+        from pipeline.aws_era5_ingestion import process_aws_era5_job
+
+        try:
+            process_aws_era5_job(job_id)
+        finally:
+            kick_queued_jobs()
+        return
 
     with SessionLocal() as db:
         job = db.get(Era5IngestJobORM, job_id)
@@ -409,6 +434,11 @@ def process_era5_job(job_id: str) -> None:
             variables=[v.strip() for v in job.variables_csv.split(",") if v.strip()],
             dataset=job.dataset,
             out_format="netcdf",
+            provider=job.provider or "cds",
+            mode=job.mode or "bbox",
+            points_set=job.points_set,
+            month_label=job.month_label,
+            source_range_json=job.source_range_json,
         )
         req_sig = job.request_signature
 
@@ -662,6 +692,8 @@ def submit_backfill(
     mode: str,
     dataset: str,
     concurrency: int = 2,
+    provider_strategy: str = "aws_first_hybrid",
+    force: bool = False,
 ) -> tuple[str, bool, int]:
     req_sig = sha256(
         json.dumps(
@@ -673,6 +705,8 @@ def submit_backfill(
                 "mode": mode,
                 "dataset": dataset,
                 "concurrency": concurrency,
+                "provider_strategy": provider_strategy,
+                "force": force,
             },
             sort_keys=True,
         ).encode("utf-8")
@@ -699,18 +733,38 @@ def submit_backfill(
             months_total=len(ranges),
             months_success=0,
             months_failed=0,
+            provider_strategy=provider_strategy,
+            force=force,
             failed_months_json="[]",
         )
         db.add(bf)
         # Commit parent row first so child inserts never hit FK races/order issues.
         db.commit()
+        if provider_strategy == "aws_first_hybrid":
+            from pipeline.aws_era5_resolver import resolve_months_provider
+
+            try:
+                decisions = {
+                    d.month_label: d
+                    for d in resolve_months_provider(start_month=start_month, end_month=end_month, variables=variables)
+                }
+            except Exception as exc:  # noqa: BLE001
+                LOG.warning("aws_resolver_unavailable fallback_to_cds error=%s", str(exc))
+                decisions = {}
+        else:
+            decisions = {}
+
         for month_label, s, e in ranges:
+            decision = decisions.get(month_label)
+            provider_selected = decision.provider if decision else "cds"
             job_id: str | None = None
             job_status = "queued"
             with SessionLocal() as jdb:
                 done = jdb.execute(
                     select(Era5IngestJobORM)
                     .where(
+                        Era5IngestJobORM.provider
+                        == ("aws_nsf_ncar" if provider_selected == "aws" else "cds"),
                         Era5IngestJobORM.dataset == dataset,
                         Era5IngestJobORM.start_date == s,
                         Era5IngestJobORM.end_date == e,
@@ -727,7 +781,25 @@ def submit_backfill(
                     job_id = done.job_id
                     job_status = done.status
             if job_id is None:
-                req = Era5Request(start_date=s, end_date=e, bbox=bbox, variables=variables, dataset=dataset, out_format="netcdf")
+                req = Era5Request(
+                    start_date=s,
+                    end_date=e,
+                    bbox=bbox,
+                    variables=variables,
+                    dataset=dataset,
+                    out_format="netcdf",
+                    provider="aws_nsf_ncar" if provider_selected == "aws" else "cds",
+                    mode=settings.aws_era5_mode_default if provider_selected == "aws" else "bbox",
+                    points_set=settings.aws_era5_points_set_default if provider_selected == "aws" else None,
+                    month_label=month_label,
+                    source_range_json=json.dumps(
+                        {
+                            "provider_strategy": provider_strategy,
+                            "provider_selected": provider_selected,
+                            "reason": decision.reason if decision else "explicit_cds",
+                        }
+                    ),
+                )
                 job_id, _ = submit_era5_job(req, enforce_limit=False)
                 with SessionLocal() as jdb:
                     ingest = jdb.get(Era5IngestJobORM, job_id)
@@ -741,6 +813,8 @@ def submit_backfill(
                     end_date=e,
                     job_id=job_id,
                     status=job_status,
+                    provider_selected=provider_selected,
+                    attempt_count=0,
                 )
             )
         db.commit()
@@ -780,7 +854,7 @@ def get_backfill_status(backfill_id: str, include_items: bool = True) -> dict | 
         bf.months_failed = len(failed)
         bf.failed_months_json = json.dumps(failed)
         if all_done:
-            bf.status = "success"
+            bf.status = "failed" if failed else "success"
             bf.finished_at = datetime.now(timezone.utc)
         db.commit()
         child_jobs = None
@@ -790,6 +864,7 @@ def get_backfill_status(backfill_id: str, include_items: bool = True) -> dict | 
                     "month": it.month_label,
                     "job_id": it.job_id,
                     "status": it.status,
+                    "provider_selected": it.provider_selected,
                     "error": it.error,
                     "finished_at": it.finished_at,
                 }
@@ -798,6 +873,7 @@ def get_backfill_status(backfill_id: str, include_items: bool = True) -> dict | 
         return {
             "status": bf.status,
             "backfill_id": bf.backfill_id,
+            "provider_strategy": bf.provider_strategy,
             "start_month": bf.start_month,
             "end_month": bf.end_month,
             "months_total": bf.months_total,

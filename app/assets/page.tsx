@@ -17,6 +17,12 @@ const PERIL_LABELS: Record<string, string> = {
 const BANDS: BandKey[] = ["minimal", "minor", "moderate", "major", "extreme"];
 const ROWS_PER_PAGE = 10;
 
+function SortIcon({ k, sortKey, sortAsc }: { k: AllPerilKey; sortKey: AllPerilKey; sortAsc: boolean }) {
+  return sortKey === k
+    ? sortAsc ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+    : <ChevronDown size={12} className="opacity-30" />;
+}
+
 export default function AssetsPage() {
   const router = useRouter();
   const { selectedPortfolioId, startDate, endDate } = useGlobalStore();
@@ -59,11 +65,6 @@ export default function AssetsPage() {
     setSelectedAsset({ asset_id: asset.asset_id, name: asset.name, lat: asset.lat, lon: asset.lon });
     router.push(`/assets/${asset.asset_id}`);
   }
-
-  const SortIcon = ({ k }: { k: AllPerilKey }) =>
-    sortKey === k
-      ? sortAsc ? <ChevronUp size={12} /> : <ChevronDown size={12} />
-      : <ChevronDown size={12} className="opacity-30" />;
 
   return (
     <div className="space-y-5 max-w-[1600px] mx-auto">
@@ -165,7 +166,7 @@ export default function AssetsPage() {
                         onClick={() => handleSort(p)}
                       >
                         <span className="flex items-center gap-1">
-                          {PERIL_LABELS[p]} <SortIcon k={p} />
+                          {PERIL_LABELS[p]} <SortIcon k={p} sortKey={sortKey} sortAsc={sortAsc} />
                         </span>
                       </th>
                     ))}

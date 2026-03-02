@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   Area, AreaChart, CartesianGrid,
 } from "recharts";
 import { PerilChip } from "@/components/ui/PerilChip";

@@ -1,24 +1,21 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 from app.era5_presets import CORE_VARIABLES
 from app.errors import ApiError
+from pipeline.aws_era5_catalog import get_catalog_run, get_latest_available, sync_catalog
 from pipeline.era5_ingestion import (
-    Era5Request,
     get_backfill_status,
     get_jobs_metrics,
     get_job,
-    kick_queued_jobs,
     submit_backfill,
-    submit_era5_job,
     validate_era5_runtime,
 )
 from pipeline.firms_ingestion import (
     FirmsRequest,
     get_asset_wildfire_features,
     get_firms_job,
-    get_firms_metrics,
     run_daily_firms_update,
     submit_firms_ingest,
 )
@@ -37,6 +34,8 @@ def create_backfill_job(*, start_month: str, end_month: str, bbox: dict, variabl
         mode=mode,
         dataset="era5-land",
         concurrency=concurrency,
+        provider_strategy="aws_first_hybrid",
+        force=False,
     )
     now = datetime.now(timezone.utc)
     return {
@@ -50,14 +49,121 @@ def create_backfill_job(*, start_month: str, end_month: str, bbox: dict, variabl
     }
 
 
+def create_aws_backfill_job(
+    *,
+    start: date,
+    end: date,
+    mode: str,
+    points_set: str | None,
+    bbox: dict,
+    variables: list[str],
+    concurrency: int,
+    force: bool,
+) -> dict:
+    start_month = f"{start.year:04d}-{start.month:02d}"
+    end_month = f"{end.year:04d}-{end.month:02d}"
+    backfill_id, _, months_total = submit_backfill(
+        start_month=start_month,
+        end_month=end_month,
+        bbox=(bbox["north"], bbox["west"], bbox["south"], bbox["east"]),
+        variables=variables,
+        mode="monthly" if mode in {"points", "bbox"} else mode,
+        dataset="era5-land",
+        concurrency=concurrency,
+        provider_strategy="aws_first_hybrid",
+        force=force,
+    )
+    return {
+        "job_id": backfill_id,
+        "status": "queued",
+        "type": "aws_era5_backfill",
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": None,
+        "progress": {
+            "months_total": months_total,
+            "months_success": 0,
+            "months_failed": 0,
+            "mode": mode,
+            "points_set": points_set,
+        },
+        "children": [],
+    }
+
+
+def create_aws_catalog_sync_job(*, prefixes: list[str] | None, max_keys_per_prefix: int) -> dict:
+    out = sync_catalog(prefixes=prefixes, max_keys_per_prefix=max_keys_per_prefix)
+    return {
+        "job_id": out["run_id"],
+        "status": out["status"],
+        "type": "aws_era5_catalog_sync",
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+        "progress": {
+            "objects_scanned": out["objects_scanned"],
+            "prefixes": out["prefixes"],
+            "error": out.get("error"),
+        },
+        "children": [],
+    }
+
+
+def get_aws_catalog_latest() -> dict:
+    return get_latest_available(required_variables=CORE_VARIABLES)
+
+
+def run_aws_monthly_update(*, bbox: dict, variables: list[str], concurrency: int = 2) -> dict:
+    latest = get_latest_available(required_variables=variables)
+    latest_month = latest.get("latest_common_month")
+    if not latest_month:
+        sync_catalog(prefixes=None, max_keys_per_prefix=2000)
+        latest = get_latest_available(required_variables=variables)
+        latest_month = latest.get("latest_common_month")
+    if not latest_month:
+        raise ApiError(status_code=503, error_code="CATALOG_EMPTY", message="AWS ERA5 catalog has no discoverable month yet")
+
+    backfill_id, _, months_total = submit_backfill(
+        start_month=latest_month,
+        end_month=latest_month,
+        bbox=(bbox["north"], bbox["west"], bbox["south"], bbox["east"]),
+        variables=variables,
+        mode="monthly",
+        dataset="era5-land",
+        concurrency=concurrency,
+        provider_strategy="aws_first_hybrid",
+        force=False,
+    )
+    return {
+        "status": "accepted",
+        "job_id": backfill_id,
+        "months_total": months_total,
+        "latest_common_month": latest_month,
+    }
+
+
 def get_job_status_payload(job_id: str) -> dict:
+    catalog_run = get_catalog_run(job_id)
+    if catalog_run:
+        return {
+            "job_id": catalog_run.run_id,
+            "status": catalog_run.status,
+            "type": "aws_era5_catalog_sync",
+            "created_at": catalog_run.started_at,
+            "updated_at": catalog_run.finished_at or catalog_run.started_at,
+            "progress": {
+                "objects_scanned": catalog_run.objects_scanned,
+                "error": catalog_run.error,
+            },
+            "children": [],
+        }
+
     bf = get_backfill_status(job_id, include_items=True)
     if bf:
         status = "success" if bf.get("status") == "finished" else bf.get("status")
+        provider_strategy = bf.get("provider_strategy")
         return {
             "job_id": bf["backfill_id"],
             "status": status,
-            "type": "era5_backfill",
+            "type": "aws_era5_backfill" if provider_strategy == "aws_first_hybrid" else "era5_backfill",
             "created_at": bf.get("created_at"),
             "updated_at": bf.get("finished_at"),
             "progress": {
@@ -92,13 +198,16 @@ def get_job_status_payload(job_id: str) -> dict:
     return {
         "job_id": job.job_id,
         "status": job.status,
-        "type": "era5_ingest",
+        "type": "aws_era5_ingest" if (job.provider or "cds") == "aws_nsf_ncar" else "era5_ingest",
         "created_at": job.created_at,
         "updated_at": job.finished_at or job.started_at,
         "progress": {
             "rows_written": job.rows_written,
             "bytes_downloaded": job.bytes_downloaded,
             "dq_status": job.dq_status,
+            "provider": job.provider,
+            "mode": job.mode,
+            "month_label": job.month_label,
         },
         "children": [],
     }
@@ -160,4 +269,3 @@ def get_wildfire_features(asset_id: str, window: str) -> dict:
     if features is None:
         raise ApiError(status_code=404, error_code="NOT_FOUND", message=f"Asset '{asset_id}' not found")
     return {"status": "success", "asset_id": asset_id, "window": window, **features}
-

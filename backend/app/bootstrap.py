@@ -37,7 +37,20 @@ def ensure_ops_schema(db: Session) -> None:
         "ALTER TABLE era5_ingest_jobs ADD COLUMN IF NOT EXISTS dq_status VARCHAR(32)",
         "ALTER TABLE era5_ingest_jobs ADD COLUMN IF NOT EXISTS dq_report_json TEXT",
         "ALTER TABLE era5_ingest_jobs ADD COLUMN IF NOT EXISTS duration_seconds DOUBLE PRECISION",
+        "ALTER TABLE era5_ingest_jobs ADD COLUMN IF NOT EXISTS provider VARCHAR(32) NOT NULL DEFAULT 'cds'",
+        "ALTER TABLE era5_ingest_jobs ADD COLUMN IF NOT EXISTS mode VARCHAR(16) NOT NULL DEFAULT 'bbox'",
+        "ALTER TABLE era5_ingest_jobs ADD COLUMN IF NOT EXISTS points_set VARCHAR(64)",
+        "ALTER TABLE era5_ingest_jobs ADD COLUMN IF NOT EXISTS month_label VARCHAR(7)",
+        "ALTER TABLE era5_ingest_jobs ADD COLUMN IF NOT EXISTS source_range_json TEXT",
         "CREATE INDEX IF NOT EXISTS ix_era5_ingest_jobs_dq_status ON era5_ingest_jobs(dq_status)",
+        "CREATE INDEX IF NOT EXISTS ix_era5_ingest_jobs_month_label ON era5_ingest_jobs(month_label)",
+        "ALTER TABLE era5_artifacts ADD COLUMN IF NOT EXISTS source_uri TEXT",
+        "ALTER TABLE era5_artifacts ADD COLUMN IF NOT EXISTS source_etag VARCHAR(255)",
+        "ALTER TABLE era5_artifacts ADD COLUMN IF NOT EXISTS cache_hit BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE era5_backfill_jobs ADD COLUMN IF NOT EXISTS provider_strategy VARCHAR(32) NOT NULL DEFAULT 'aws_first_hybrid'",
+        "ALTER TABLE era5_backfill_jobs ADD COLUMN IF NOT EXISTS force BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE era5_backfill_items ADD COLUMN IF NOT EXISTS provider_selected VARCHAR(16) NOT NULL DEFAULT 'cds'",
+        "ALTER TABLE era5_backfill_items ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0",
         """
         CREATE TABLE IF NOT EXISTS era5_backfill_jobs (
             backfill_id VARCHAR(64) PRIMARY KEY,
@@ -251,6 +264,38 @@ def ensure_ops_schema(db: Session) -> None:
         "CREATE INDEX IF NOT EXISTS ix_notifications_asset_id ON notifications(asset_id)",
         "CREATE INDEX IF NOT EXISTS ix_notifications_type ON notifications(type)",
         "CREATE INDEX IF NOT EXISTS ix_notifications_severity ON notifications(severity)",
+        """
+        CREATE TABLE IF NOT EXISTS aws_era5_objects (
+            id SERIAL PRIMARY KEY,
+            bucket VARCHAR(128) NOT NULL,
+            key TEXT NOT NULL,
+            size BIGINT NOT NULL DEFAULT 0,
+            etag VARCHAR(255) NULL,
+            last_modified TIMESTAMPTZ NULL,
+            dataset_group VARCHAR(128) NULL,
+            variable VARCHAR(64) NULL,
+            year INTEGER NULL,
+            month INTEGER NULL,
+            day INTEGER NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_aws_era5_bucket_key UNIQUE (bucket, key)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_aws_era5_objects_variable ON aws_era5_objects(variable)",
+        "CREATE INDEX IF NOT EXISTS ix_aws_era5_objects_year ON aws_era5_objects(year)",
+        "CREATE INDEX IF NOT EXISTS ix_aws_era5_objects_month ON aws_era5_objects(month)",
+        "CREATE INDEX IF NOT EXISTS ix_aws_era5_objects_last_modified ON aws_era5_objects(last_modified)",
+        """
+        CREATE TABLE IF NOT EXISTS aws_era5_catalog_runs (
+            run_id VARCHAR(64) PRIMARY KEY,
+            status VARCHAR(16) NOT NULL,
+            objects_scanned INTEGER NOT NULL DEFAULT 0,
+            started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            finished_at TIMESTAMPTZ NULL,
+            error TEXT NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_aws_era5_catalog_runs_status ON aws_era5_catalog_runs(status)",
     ]
     for stmt in stmts:
         db.execute(text(stmt))

@@ -30,6 +30,7 @@ export function AssetMap({ lat, lon, name, score, band }: AssetMapProps) {
     let cancelled = false;
     const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const renderMarker = (maplib: any, map: any) => {
       const markerColor = band ? BAND_COLOR_HEX[band] : "#1B3A4B";
       const el = document.createElement("div");

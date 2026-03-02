@@ -2,10 +2,9 @@
 
 import dynamic from "next/dynamic";
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { PROVINCE_RISK, type ProvinceRisk } from "@/lib/turkeyRiskData";
-import { ScoreCell, BAND_COLOR } from "@/components/ui/BandBadge";
+import { ScoreCell } from "@/components/ui/BandBadge";
 import { SkeletonMap } from "@/components/ui/Skeleton";
 import toast from "react-hot-toast";
 
@@ -41,8 +40,13 @@ const ROWS_PER_PAGE = 10;
 
 type SortKey = "risk" | "heat" | "rain" | "drought" | "pop_change" | "gdp_change";
 
+function SortIcon({ k, sortKey, sortAsc }: { k: SortKey; sortKey: SortKey; sortAsc: boolean }) {
+  return sortKey === k
+    ? sortAsc ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+    : <ChevronDown size={12} className="opacity-30" />;
+}
+
 export default function GeostrategyPage() {
-  const router = useRouter();
   const [search, setSearch]       = useState("");
   const [sortKey, setSortKey]     = useState<SortKey>("risk");
   const [sortAsc, setSortAsc]     = useState(false);
@@ -74,11 +78,6 @@ export default function GeostrategyPage() {
     setActiveProvince(p);
     toast(`Opening ${p.nameEn} report — coming soon`, { icon: "🏛" });
   }
-
-  const SortIcon = ({ k }: { k: SortKey }) =>
-    sortKey === k
-      ? sortAsc ? <ChevronUp size={12} /> : <ChevronDown size={12} />
-      : <ChevronDown size={12} className="opacity-30" />;
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
@@ -195,7 +194,7 @@ export default function GeostrategyPage() {
                   >
                     <span className="flex items-center gap-1">
                       {col.label}
-                      {col.key && <SortIcon k={col.key} />}
+                      {col.key && <SortIcon k={col.key} sortKey={sortKey} sortAsc={sortAsc} />}
                     </span>
                   </th>
                 ))}

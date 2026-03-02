@@ -11,6 +11,7 @@ from app import orm  # noqa: F401
 from app.routers import (
     alerts,
     assets,
+    aws_jobs,
     climatology,
     era5_ops,
     exports,
@@ -88,9 +89,10 @@ app.include_router(exports.router)
 app.include_router(climatology.router)
 app.include_router(assets.router)
 app.include_router(firms.router)
+app.include_router(aws_jobs.router)
 app.include_router(provinces.router, prefix="/v1/risk", tags=["Risk"])
 app.include_router(alerts.router, prefix="/v1/alerts", tags=["Alerts"])
 app.include_router(portfolio.router, prefix="/v1/portfolio", tags=["Portfolio"])
 app.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
 app.include_router(internal.router, prefix="/internal", tags=["Internal"])
-app.include_router(era5_ops.router, tags=["ERA5 Ops"])
+app.include_router(era5_ops.router, prefix="/legacy", tags=["ERA5 Ops"])

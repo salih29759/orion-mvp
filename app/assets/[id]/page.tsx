@@ -10,7 +10,7 @@ import {
 import { ChevronRight } from "lucide-react";
 import { useBatchScores } from "@/hooks/useApi";
 import { useGlobalStore } from "@/lib/store";
-import { ScoreDisplay, BAND_COLOR, PERIL_COLOR } from "@/components/ui/BandBadge";
+import { ScoreDisplay, BAND_COLOR } from "@/components/ui/BandBadge";
 import { PerilChip } from "@/components/ui/PerilChip";
 import { Skeleton, SkeletonCard } from "@/components/ui/Skeleton";
 import type { BandKey, PerilKey, AllPerilKey, ScoreSeriesPoint } from "@/types";

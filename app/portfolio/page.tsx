@@ -9,9 +9,8 @@ import {
 import { Download, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { usePortfolios, useRiskSummary, useExportPortfolio } from "@/hooks/useApi";
 import { useGlobalStore } from "@/lib/store";
-import { ScoreDisplay, ScoreCell, BAND_COLOR, PERIL_COLOR } from "@/components/ui/BandBadge";
+import { ScoreDisplay, ScoreCell, BAND_COLOR } from "@/components/ui/BandBadge";
 import { PerilChip } from "@/components/ui/PerilChip";
-import { ScoreBar } from "@/components/ui/ScoreBar";
 import { Skeleton, SkeletonCard } from "@/components/ui/Skeleton";
 import type { BandKey, TopAsset, AllPerilKey } from "@/types";
 
@@ -147,6 +146,12 @@ type SortKey = AllPerilKey;
 
 const ROWS_PER_PAGE = 10;
 
+function SortIcon({ k, sortKey, sortAsc }: { k: SortKey; sortKey: SortKey; sortAsc: boolean }) {
+  return sortKey === k
+    ? sortAsc ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+    : <ChevronDown size={12} className="opacity-30" />;
+}
+
 export default function PortfolioPage() {
   const router = useRouter();
   const { selectedPortfolioId, setSelectedPortfolioId, startDate, endDate } = useGlobalStore();
@@ -172,7 +177,7 @@ export default function PortfolioPage() {
   }, [portfolios, selectedPortfolioId, setSelectedPortfolioId]);
 
   // Band distribution for bar chart
-  const totalAssets = summary ? Object.values(summary.bands).reduce((a, b) => a + (b ?? 0), 0) : 0;
+  const totalAssets = summary ? Object.values(summary.bands).reduce((a: number, b) => a + (b ?? 0), 0) : 0;
   const bandChartData = BANDS.map((b) => {
     const count = summary?.bands[b] ?? 0;
     return { band: b, count, pct: totalAssets ? Math.round((count / totalAssets) * 1000) / 10 : 0 };
@@ -183,7 +188,7 @@ export default function PortfolioPage() {
 
   // Sorted + filtered assets
   const sortedAssets: TopAsset[] = useMemo(() => {
-    const base = summary?.top_assets ?? [];
+    const base: TopAsset[] = summary?.top_assets ?? [];
     return base
       .filter((a) => {
         const matchSearch = a.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -211,11 +216,6 @@ export default function PortfolioPage() {
     setSelectedAsset({ asset_id: asset.asset_id, name: asset.name, lat: asset.lat, lon: asset.lon });
     router.push(`/assets/${asset.asset_id}`);
   }
-
-  const SortIcon = ({ k }: { k: SortKey }) =>
-    sortKey === k
-      ? sortAsc ? <ChevronUp size={12} /> : <ChevronDown size={12} />
-      : <ChevronDown size={12} className="opacity-30" />;
 
   if (!selectedPortfolioId && !loadingPortfolios) {
     return (
@@ -442,7 +442,7 @@ export default function PortfolioPage() {
                       >
                         <span className="flex items-center gap-1">
                           {PERIL_LABELS[p]}
-                          <SortIcon k={p} />
+                          <SortIcon k={p} sortKey={sortKey} sortAsc={sortAsc} />
                         </span>
                       </th>
                     ))}

@@ -74,6 +74,11 @@ class Era5IngestJobORM(Base):
     dataset: Mapped[str] = mapped_column(String(128), nullable=False)
     variables_csv: Mapped[str] = mapped_column(Text, nullable=False)
     bbox_csv: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False, default="cds")
+    mode: Mapped[str] = mapped_column(String(16), nullable=False, default="bbox")
+    points_set: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    month_label: Mapped[str | None] = mapped_column(String(7), nullable=True, index=True)
+    source_range_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     rows_written: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -103,6 +108,9 @@ class Era5ArtifactORM(Base):
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     gcs_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    source_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_etag: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    cache_hit: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -123,6 +131,8 @@ class Era5BackfillJobORM(Base):
     months_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     months_success: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     months_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    provider_strategy: Mapped[str] = mapped_column(String(32), nullable=False, default="aws_first_hybrid")
+    force: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     failed_months_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -139,9 +149,40 @@ class Era5BackfillItemORM(Base):
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     job_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("era5_ingest_jobs.job_id", ondelete="SET NULL"), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued", index=True)
+    provider_selected: Mapped[str] = mapped_column(String(16), nullable=False, default="cds")
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AwsEra5ObjectORM(Base):
+    __tablename__ = "aws_era5_objects"
+    __table_args__ = (UniqueConstraint("bucket", "key", name="uq_aws_era5_bucket_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bucket: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(Text, nullable=False)
+    size: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    etag: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    last_modified: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    dataset_group: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    variable: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    year: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    month: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    day: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class AwsEra5CatalogRunORM(Base):
+    __tablename__ = "aws_era5_catalog_runs"
+
+    run_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    objects_scanned: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class ExportJobORM(Base):

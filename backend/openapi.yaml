@@ -21,6 +21,7 @@ tags:
   - name: Climatology
   - name: Notifications
   - name: FIRMS
+  - name: AWS ERA5
 
 components:
   securitySchemes:
@@ -413,6 +414,76 @@ components:
           maximum: 10
           default: 2
 
+    AwsCatalogSyncRequest:
+      type: object
+      properties:
+        prefixes:
+          type: array
+          items: { type: string }
+        max_keys_per_prefix:
+          type: integer
+          minimum: 10
+          maximum: 50000
+          default: 2000
+
+    AwsEra5BackfillRequest:
+      type: object
+      required: [start, end, mode, bbox, variables]
+      properties:
+        start:
+          type: string
+          format: date
+        end:
+          type: string
+          format: date
+        mode:
+          type: string
+          enum: [points, bbox]
+          default: points
+        points_set:
+          type: string
+          nullable: true
+          example: assets+provinces
+        bbox:
+          type: object
+          required: [north, west, south, east]
+          properties:
+            north: { type: number, format: float }
+            west: { type: number, format: float }
+            south: { type: number, format: float }
+            east: { type: number, format: float }
+        variables:
+          type: array
+          items: { type: string }
+        concurrency:
+          type: integer
+          minimum: 1
+          maximum: 3
+          default: 3
+        force:
+          type: boolean
+          default: false
+
+    AwsCatalogLatestResponse:
+      type: object
+      required: [bucket, region, latest_by_variable]
+      properties:
+        bucket:
+          type: string
+          example: nsf-ncar-era5
+        region:
+          type: string
+          example: us-west-2
+        latest_common_month:
+          type: string
+          nullable: true
+          example: "2025-10"
+        latest_by_variable:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+
     ClimatologyBuildRequest:
       type: object
       required: [version, baseline_start, baseline_end, level]
@@ -624,6 +695,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/JobStatusResponse"
 
+  /jobs/aws-era5/catalog/sync:
+    post:
+      tags: [AWS ERA5]
+      summary: Sync AWS ERA5 object catalog
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AwsCatalogSyncRequest"
+      responses:
+        "200":
+          description: Catalog sync status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatusResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /jobs/aws-era5/catalog/latest:
+    get:
+      tags: [AWS ERA5]
+      summary: Latest available month from AWS catalog
+      responses:
+        "200":
+          description: Latest availability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AwsCatalogLatestResponse"
+
+  /jobs/aws-era5/backfill:
+    post:
+      tags: [AWS ERA5]
+      summary: Start AWS ERA5 backfill (hybrid with CDS fallback)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AwsEra5BackfillRequest"
+      responses:
+        "202":
+          description: Backfill accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatusResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
   /jobs/{job_id}:
     get:
       tags: [Jobs]
@@ -750,6 +879,14 @@ paths:
     post:
       tags: [FIRMS]
       summary: Daily FIRMS incremental update
+      responses:
+        "200":
+          description: Triggered
+
+  /cron/aws-era5/monthly-update:
+    post:
+      tags: [AWS ERA5]
+      summary: Trigger monthly AWS ERA5 refresh
       responses:
         "200":
           description: Triggered

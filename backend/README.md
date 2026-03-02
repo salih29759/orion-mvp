@@ -199,6 +199,49 @@ curl -X POST "https://orion-api-126886725893.europe-west1.run.app/jobs/era5/back
   }'
 ```
 
+## AWS ERA5 Hybrid (NSF/NCAR + CDS fallback)
+
+Catalog sync:
+
+```bash
+curl -X POST "$BASE_URL/jobs/aws-era5/catalog/sync" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"max_keys_per_prefix":2000}'
+```
+
+Catalog latest:
+
+```bash
+curl -s "$BASE_URL/jobs/aws-era5/catalog/latest" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+AWS-first backfill:
+
+```bash
+curl -X POST "$BASE_URL/jobs/aws-era5/backfill" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start":"2015-01-01",
+    "end":"2024-12-31",
+    "mode":"points",
+    "points_set":"assets+provinces",
+    "bbox":{"north":42,"west":26,"south":36,"east":45},
+    "variables":["2m_temperature","total_precipitation","10m_u_component_of_wind","10m_v_component_of_wind","volumetric_soil_water_layer_1"],
+    "concurrency":3,
+    "force":false
+  }'
+```
+
+Monthly update cron:
+
+```bash
+curl -X POST "$BASE_URL/cron/aws-era5/monthly-update" \
+  -H "x-cron-secret: $CRON_SECRET"
+```
+
 Build monthly climatology from baseline:
 
 ```bash

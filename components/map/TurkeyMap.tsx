@@ -18,6 +18,7 @@ export function TurkeyMap({ onProvinceClick }: TurkeyMapProps) {
     let cancelled = false;
     const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const initLayers = async (map: any) => {
       if (cancelled) return;
       let geoJson: GeoJSON.FeatureCollection | null = null;
@@ -74,6 +75,7 @@ export function TurkeyMap({ onProvinceClick }: TurkeyMapProps) {
         });
 
         let hoveredId: string | number | null = null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         map.on("mousemove", "province-fill", (e: any) => {
           if (e.features && e.features.length > 0) {
             map.getCanvas().style.cursor = "pointer";
@@ -88,6 +90,7 @@ export function TurkeyMap({ onProvinceClick }: TurkeyMapProps) {
           if (hoveredId !== null) map.setFeatureState({ source: "provinces", id: hoveredId }, { hover: false });
           hoveredId = null;
         });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         map.on("click", "province-fill", (e: any) => {
           if (!e.features?.length) return;
           const props = e.features[0].properties ?? {};

@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     cds_area_east: float = 45.0
     era5_gcs_bucket: str | None = None
     era5_max_concurrent_jobs: int = 1
+    era5_hybrid_enable: bool = True
+    era5_cds_fallback_enable: bool = True
+    aws_era5_bucket: str = "nsf-ncar-era5"
+    aws_era5_region: str = "us-west-2"
+    aws_era5_use_unsigned: bool = True
+    aws_era5_max_concurrent_downloads: int = 3
+    aws_era5_mode_default: str = "points"
+    aws_era5_points_set_default: str = "assets+provinces"
     app_env: str = "development"
 
 

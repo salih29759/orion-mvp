@@ -9,6 +9,7 @@ psycopg[binary]==3.2.3
 requests==2.32.3
 cdsapi==0.7.7
 google-cloud-storage==2.18.2
+boto3==1.35.81
 xarray==2025.1.2
 netCDF4==1.7.2
 pandas==2.2.3

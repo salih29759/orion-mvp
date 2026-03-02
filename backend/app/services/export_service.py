@@ -62,7 +62,9 @@ def create_portfolio_export(*, portfolio_id: str, start_date, end_date, include_
         start_date=start_date,
         end_date=end_date,
         climatology_version="v1_baseline_2015_2024",
-        persist=True,
+        # Export should be read-only; persisting can hit unique constraints
+        # when the same portfolio/date range is exported repeatedly.
+        persist=False,
         include_perils=normalize_perils(["heat", "rain", "wind", "drought"]),
     )
     out_rows: list[dict[str, Any]] = []
@@ -137,4 +139,3 @@ def create_portfolio_export(*, portfolio_id: str, start_date, end_date, include_
     )
 
     return {"export_id": export_id, "status": "success", "path": gcs_uri, "download_url": signed_url}
-
