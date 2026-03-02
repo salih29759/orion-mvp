@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+import json
 import sys
+from datetime import date
 from pathlib import Path
 import types
 
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+
+from app.database import Base
+from app.orm import AssetRiskScoreORM, NotificationORM, PortfolioAssetORM
 
 
 # Lightweight stubs so unit tests can run without cloud/CDS client libs.
@@ -80,3 +89,82 @@ if "google.cloud" not in sys.modules:
     sys.modules["google.auth.transport.requests"] = auth_transport_requests
     sys.modules["google.cloud"] = cloud
     sys.modules["google.cloud.storage"] = storage
+
+
+def _seed_contract_fixture(SessionLocal):
+    with SessionLocal() as db:
+        db.add_all(
+            [
+                PortfolioAssetORM(portfolio_id="demo-3-assets", asset_id="a1", lat=41.01, lon=28.97),
+                PortfolioAssetORM(portfolio_id="demo-3-assets", asset_id="a2", lat=39.93, lon=32.85),
+                PortfolioAssetORM(portfolio_id="demo-3-assets", asset_id="a3", lat=38.42, lon=27.14),
+            ]
+        )
+        for asset_id, score in [("a1", 80), ("a2", 50), ("a3", 20)]:
+            for peril in ["heat", "rain", "wind", "drought"]:
+                db.add(
+                    AssetRiskScoreORM(
+                        asset_id=asset_id,
+                        score_date=date(2024, 1, 1),
+                        peril=peril,
+                        scenario="historical",
+                        horizon="current",
+                        likelihood="observed",
+                        score_0_100=score,
+                        band="Extreme" if score >= 80 else "Moderate" if score >= 40 else "Minor",
+                        exposure_json=json.dumps({"value": score}),
+                        drivers_json=json.dumps([f"{peril} driver"]),
+                        run_id="seed-run",
+                        climatology_version="v1_baseline_2015_2024",
+                        data_version="era5_daily_v1",
+                    )
+                )
+        db.add(
+            NotificationORM(
+                id="ntf-1",
+                customer_id="cust-1",
+                portfolio_id="demo-3-assets",
+                asset_id="a1",
+                type="wildfire_proximity",
+                severity="high",
+                payload_json=json.dumps({"nearest_fire_distance_km": 4.2}),
+                dedup_key="demo-3-assets:a1:wildfire:high:2026-03-01",
+            )
+        )
+        db.commit()
+
+
+@pytest.fixture
+def api_client(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    from app import database as app_database
+    from main import app
+    from app.routers import era5_ops
+    from app.services import export_service, portfolio_service
+    from pipeline import firms_ingestion, risk_scoring
+
+    db_path = tmp_path / "contract_test.db"
+    engine = create_engine(
+        f"sqlite:///{db_path}",
+        future=True,
+        connect_args={"check_same_thread": False},
+    )
+    TestSession = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    Base.metadata.create_all(engine)
+
+    monkeypatch.setattr(app_database, "SessionLocal", TestSession)
+    monkeypatch.setattr(portfolio_service, "SessionLocal", TestSession)
+    monkeypatch.setattr(export_service, "SessionLocal", TestSession)
+    monkeypatch.setattr(era5_ops, "SessionLocal", TestSession)
+    monkeypatch.setattr(risk_scoring, "SessionLocal", TestSession)
+    monkeypatch.setattr(firms_ingestion, "SessionLocal", TestSession)
+
+    _seed_contract_fixture(TestSession)
+
+    startup_handlers = list(app.router.on_startup)
+    app.router.on_startup.clear()
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        app.router.on_startup[:] = startup_handlers

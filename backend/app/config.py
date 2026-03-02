@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     )
 
     api_key: str = "orion-dev-key-2024"
+    orion_backend_api_key: str | None = None
+    local_dev_auth_bypass: bool = False
     database_url: str = "sqlite:///./orion.db"
     allowed_origins: str = "http://localhost:3000,http://localhost:3001"
     model_version: str = "orion-climate-v2.1"

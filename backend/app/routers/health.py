@@ -1,49 +1,34 @@
-from datetime import datetime
-
 from sqlalchemy import text
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from app.config import settings
 from app.database import SessionLocal
+from app.errors import ApiError
+from app.schemas.common import HealthResponse, MetricsResponse
+from app.services.job_service import get_metrics_payload
 
 router = APIRouter()
 
 
-@router.get("/health", summary="Health check")
+@router.get("/health", response_model=HealthResponse, summary="Health check")
 async def health():
-    """Returns API health status and Postgres connectivity."""
-    db_ok = False
-    db_error: str | None = None
-
     try:
         session = SessionLocal()
         session.execute(text("SELECT 1"))
-        db_ok = True
     except Exception as exc:
-        db_error = str(exc)
+        raise ApiError(
+            status_code=503,
+            error_code="SERVICE_UNAVAILABLE",
+            message="Database is unreachable",
+            details={"error": str(exc)},
+        ) from exc
     finally:
         if "session" in locals():
             session.close()
 
-    if not db_ok:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "status": "unhealthy",
-                "database": "unreachable",
-                "error": db_error,
-            },
-        )
+    return HealthResponse(status="ok", version=settings.model_version)
 
-    return {
-        "status": "ok",
-        "version": settings.model_version,
-        # backward-compatible fields
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "model_version": settings.model_version,
-        "confidence_score": settings.confidence_score,
-        "services": {
-            "database": "connected",
-            "engine": settings.database_url.split(":")[0],
-        },
-    }
+
+@router.get("/health/metrics", response_model=MetricsResponse, summary="Basic operational metrics")
+async def metrics():
+    return get_metrics_payload()

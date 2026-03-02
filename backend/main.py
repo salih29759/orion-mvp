@@ -1,12 +1,29 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import Base, engine
 from app.database import SessionLocal
 from app.bootstrap import ensure_ops_schema, ensure_provinces_seeded
+from app.errors import ApiError
 from app import orm  # noqa: F401
-from app.routers import alerts, era5_ops, health, internal, jobs, portfolio, provinces
+from app.routers import (
+    alerts,
+    assets,
+    climatology,
+    era5_ops,
+    exports,
+    firms,
+    health,
+    internal,
+    jobs,
+    notifications,
+    portfolio,
+    portfolios,
+    provinces,
+    scores,
+)
 
 app = FastAPI(
     title="Orion Labs Climate Risk API",
@@ -47,6 +64,14 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(ApiError)
+async def api_error_handler(_, exc: ApiError):
+    payload = {"error_code": exc.error_code, "message": exc.message}
+    if exc.details:
+        payload["details"] = exc.details
+    return JSONResponse(status_code=exc.status_code, content=payload)
+
+
 @app.on_event("startup")
 def startup() -> None:
     # Keeps local/dev environments self-contained; prod should still run migrations.
@@ -56,6 +81,13 @@ def startup() -> None:
         ensure_provinces_seeded(db)
 
 app.include_router(health.router, tags=["Health"])
+app.include_router(portfolios.router)
+app.include_router(scores.router)
+app.include_router(notifications.router)
+app.include_router(exports.router)
+app.include_router(climatology.router)
+app.include_router(assets.router)
+app.include_router(firms.router)
 app.include_router(provinces.router, prefix="/v1/risk", tags=["Risk"])
 app.include_router(alerts.router, prefix="/v1/alerts", tags=["Alerts"])
 app.include_router(portfolio.router, prefix="/v1/portfolio", tags=["Portfolio"])

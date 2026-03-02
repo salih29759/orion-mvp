@@ -2,6 +2,49 @@
 
 OpenAPI contract source of truth: `backend/openapi.yaml`
 
+## Contract API
+
+Base URL examples:
+
+- Local: `http://localhost:8000`
+- Cloud Run: `https://orion-api-<project>.run.app`
+
+Auth header:
+
+```bash
+Authorization: Bearer <ORION_BACKEND_API_KEY>
+```
+
+Auth env vars:
+
+- `ORION_BACKEND_API_KEY`: primary API key for Bearer auth
+- `LOCAL_DEV_AUTH_BYPASS=true`: optional local-only bypass
+
+Minimal contract curls:
+
+```bash
+curl -s "$BASE_URL/portfolios" -H "Authorization: Bearer $API_KEY"
+
+curl -s "$BASE_URL/portfolios/demo-10-assets/risk-summary?start=2024-01-01&end=2024-01-31" \
+  -H "Authorization: Bearer $API_KEY"
+
+curl -s -X POST "$BASE_URL/scores/batch" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"assets":[{"asset_id":"a1","lat":41.01,"lon":28.97}],"start_date":"2024-01-01","end_date":"2024-01-03","climatology_version":"v1_test_2024_jan","include_perils":["heat","rain","wind","drought"]}'
+
+curl -s -X POST "$BASE_URL/export/portfolio" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"portfolio_id":"demo-10-assets","start_date":"2024-01-01","end_date":"2024-01-31","format":"csv","include_drivers":true}'
+```
+
+Run tests:
+
+```bash
+pytest -q backend/tests
+```
+
 ## Local setup
 
 ```bash
@@ -90,7 +133,7 @@ Export:
 
 Metrics:
 
-- `GET /health/metrics` (requires `x-cron-secret`)
+- `GET /health/metrics`
 
 Climatology build:
 

@@ -1,60 +1,41 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.auth import verify_token
+from app.errors import ApiError
 from app.models import (
     ClimatePoint,
     ClimateSeriesResponse,
     Era5IngestRequest,
     Era5IngestResponse,
-    JobStatusResponse,
 )
+from app.schemas.common import BBox, BackfillRequest, JobStatusResponse
+from app.services.job_service import create_backfill_job, create_firms_ingest_job, get_job_status_payload
 from pipeline.era5_ingestion import (
     Era5Request,
-    get_backfill_status,
     get_era5_features,
-    get_job,
     kick_queued_jobs,
     request_signature,
     submit_era5_job,
     validate_era5_runtime,
 )
-from pipeline.firms_ingestion import get_firms_job
 from pipeline.open_meteo_series import fetch_open_meteo_daily, fetch_open_meteo_today
 
 router = APIRouter()
 
 
-def _to_job_response(job) -> JobStatusResponse:
-    dq_report = None
-    if job.dq_report_json:
-        try:
-            dq_report = json.loads(job.dq_report_json)
-        except Exception:  # noqa: BLE001
-            dq_report = None
-    return JobStatusResponse(
-        status=job.status,
-        job_id=job.job_id,
-        request_signature=job.request_signature,
-        dataset=job.dataset,
-        variables=[x.strip() for x in job.variables_csv.split(",") if x.strip()],
-        bbox=[float(x) for x in job.bbox_csv.split(",")],
-        start_date=job.start_date,
-        end_date=job.end_date,
-        rows_written=job.rows_written,
-        bytes_downloaded=job.bytes_downloaded,
-        raw_files=job.raw_files,
-        feature_files=job.feature_files,
-        dq_status=job.dq_status,
-        dq_report=dq_report,
-        created_at=job.created_at,
-        started_at=job.started_at,
-        finished_at=job.finished_at,
-        error=job.error,
+@router.post("/era5/backfill", response_model=JobStatusResponse, status_code=status.HTTP_202_ACCEPTED)
+async def era5_backfill(body: BackfillRequest, _: str = Depends(verify_token)):
+    return create_backfill_job(
+        start_month=body.start_month,
+        end_month=body.end_month,
+        bbox=body.bbox.model_dump(),
+        variables=body.variables,
+        mode=body.mode,
+        concurrency=body.concurrency,
     )
 
 
@@ -68,11 +49,13 @@ async def queue_era5_ingest(
     body: Era5IngestRequest,
     _: str = Depends(verify_token),
 ):
+    # Legacy endpoint kept for compatibility.
     missing = validate_era5_runtime()
     if missing:
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
-            detail=f"ERA5 ingestion is not configured. Missing env vars: {', '.join(missing)}",
+            error_code="CONFIG_ERROR",
+            message=f"ERA5 ingestion is not configured. Missing env vars: {', '.join(missing)}",
         )
     req = Era5Request(
         start_date=body.start_date,
@@ -86,7 +69,7 @@ async def queue_era5_ingest(
     try:
         job_id, deduped = submit_era5_job(req)
     except RuntimeError as exc:
-        raise HTTPException(status_code=429, detail=str(exc)) from exc
+        raise ApiError(status_code=429, error_code="RATE_LIMIT", message=str(exc)) from exc
 
     if not deduped:
         kick_queued_jobs()
@@ -99,65 +82,32 @@ async def queue_era5_ingest(
     )
 
 
-@router.get("/{job_id}", summary="Get asynchronous ERA5 ingestion/backfill job status")
-async def job_status(job_id: str, _: str = Depends(verify_token)):
-    # Backfill status (with child jobs)
-    bf = get_backfill_status(job_id, include_items=True)
-    if bf:
-        status = "success" if bf.get("status") == "finished" else bf.get("status")
-        children = [c["job_id"] for c in (bf.get("child_jobs") or []) if c.get("job_id")]
-        return {
-            "job_id": bf["backfill_id"],
-            "status": status,
-            "type": "era5_backfill",
-            "created_at": bf.get("created_at"),
-            "updated_at": bf.get("finished_at"),
-            "progress": {
-                "months_total": bf.get("months_total", 0),
-                "months_success": bf.get("months_success", 0),
-                "months_failed": bf.get("months_failed", 0),
-                "failed_months": bf.get("failed_months", []),
-            },
-            "children": children,
-            # backward-compatible fields
-            **bf,
-        }
-    firms = get_firms_job(job_id)
-    if firms:
-        return {
-            "job_id": firms.job_id,
-            "status": firms.status,
-            "type": "firms_ingest",
-            "created_at": firms.created_at,
-            "updated_at": firms.finished_at or firms.started_at,
-            "progress": {
-                "rows_fetched": firms.rows_fetched,
-                "rows_inserted": firms.rows_inserted,
-                "raw_gcs_uri": firms.raw_gcs_uri,
-            },
-            "children": [],
-            "error": firms.error,
-            "source": firms.source,
-            "start_date": firms.start_date,
-            "end_date": firms.end_date,
-        }
-    job = get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
-    payload = _to_job_response(job).model_dump()
-    payload.update(
-        {
-            "type": "era5_ingest",
-            "updated_at": payload.get("finished_at") or payload.get("started_at"),
-            "progress": {
-                "rows_written": payload.get("rows_written", 0),
-                "bytes_downloaded": payload.get("bytes_downloaded", 0),
-                "dq_status": payload.get("dq_status"),
-            },
-            "children": [],
-        }
+@router.post("/firms/ingest", response_model=JobStatusResponse, status_code=status.HTTP_202_ACCEPTED)
+async def firms_ingest(
+    body: dict,
+    _: str = Depends(verify_token),
+):
+    # Contract defines inline schema; we parse and validate required fields here.
+    try:
+        source = str(body["source"])
+        bbox = BBox(**body["bbox"]).model_dump()
+        start_date = date.fromisoformat(body["start_date"])
+        end_date = date.fromisoformat(body["end_date"])
+    except Exception as exc:  # noqa: BLE001
+        raise ApiError(status_code=422, error_code="VALIDATION_ERROR", message="Invalid FIRMS ingest payload") from exc
+    if start_date > end_date:
+        raise ApiError(status_code=422, error_code="VALIDATION_ERROR", message="start_date must be <= end_date")
+    return create_firms_ingest_job(
+        source=source,
+        bbox=bbox,
+        start_date=start_date,
+        end_date=end_date,
     )
-    return payload
+
+
+@router.get("/{job_id}", response_model=JobStatusResponse, summary="Get asynchronous ERA5/FIRMS job status")
+async def job_status(job_id: str, _: str = Depends(verify_token)):
+    return get_job_status_payload(job_id)
 
 
 @router.get(
@@ -172,8 +122,9 @@ async def climate_series(
     end_date: date = Query(...),
     _: str = Depends(verify_token),
 ):
+    # Legacy endpoint kept for compatibility.
     if start_date > end_date:
-        raise HTTPException(status_code=400, detail="start_date must be <= end_date")
+        raise ApiError(status_code=422, error_code="VALIDATION_ERROR", message="start_date must be <= end_date")
 
     era5 = {r["date"]: r for r in get_era5_features(lat, lng, start_date, end_date)}
     open_meteo = {r["date"]: r for r in fetch_open_meteo_daily(lat, lng, start_date, end_date)}
