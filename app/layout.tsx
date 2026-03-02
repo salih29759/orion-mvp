@@ -1,31 +1,33 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Providers } from "./providers";
-import Header from "@/components/Header";
-import { Sidebar } from "@/components/Sidebar";
+import { Providers }  from "./providers";
+import { Sidebar }    from "@/components/Sidebar";
+import { TopBar }     from "@/components/TopBar";
 
 export const metadata: Metadata = {
   title: "Orion Labs | Climate Risk Intelligence",
-  description:
-    "AI-powered climate risk scoring platform for insurance companies",
+  description: "AI-powered climate risk scoring platform for insurance companies",
   icons: {
     icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔭</text></svg>",
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-[#0a1628] text-white min-h-screen grid-bg">
+      <body style={{ backgroundColor: "var(--bg-page)", color: "var(--text-primary)" }} className="min-h-screen">
         <Providers>
-          <Header />
-          <div className="flex min-h-[calc(100vh-64px)]">
+          <div className="flex h-screen overflow-hidden">
             <Sidebar />
-            <main className="flex-1 overflow-auto">{children}</main>
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <TopBar />
+              <main
+                className="flex-1 overflow-auto"
+                style={{ backgroundColor: "var(--bg-page)", padding: "32px" }}
+              >
+                {children}
+              </main>
+            </div>
           </div>
         </Providers>
       </body>

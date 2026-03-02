@@ -1,104 +1,166 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  Building2,
+  Globe2,
+  BarChart3,
+  Bell,
+  Code2,
+} from "lucide-react";
+import { useNotifications } from "@/hooks/useApi";
+import { useGlobalStore } from "@/lib/store";
 
-const navItems = [
+interface NavItem {
+  label:    string;
+  href:     string;
+  icon:     React.ReactNode;
+  badge?:   string | number;
+  disabled?: boolean;
+}
+
+const NAV_SECTIONS = [
   {
-    label: "Dashboard",
-    href: "/",
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    ),
+    heading: "Analysis",
+    items: [
+      { label: "Portfolio",     href: "/portfolio",   icon: <LayoutDashboard size={16} /> },
+      { label: "Assets",        href: "/assets",      icon: <Building2 size={16} /> },
+      { label: "Geostrategy",   href: "/geostrategy", icon: <Globe2 size={16} /> },
+    ] as NavItem[],
   },
   {
-    label: "Portfolio",
-    href: "/portfolio",
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
+    heading: "Risk",
+    items: [
+      { label: "Scenario Analysis", href: "/scenario",      icon: <BarChart3 size={16} />, badge: "BETA" },
+      { label: "Notifications",     href: "/notifications", icon: <Bell size={16} /> },
+    ] as NavItem[],
   },
   {
-    label: "Assets",
-    href: "/assets",
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-      </svg>
-    ),
-  },
-  {
-    label: "Notifications",
-    href: "/notifications",
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-      </svg>
-    ),
-  },
-  {
-    label: "API Docs",
-    href: "/api-docs",
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-          d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-      </svg>
-    ),
+    heading: "Developer",
+    items: [
+      { label: "API Docs", href: "/api-docs", icon: <Code2 size={16} />, badge: "Soon", disabled: true },
+    ] as NavItem[],
   },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { selectedPortfolioId } = useGlobalStore();
+  const { data: notifs } = useNotifications(selectedPortfolioId ?? undefined);
+  const unread = notifs?.filter((n) => !n.acknowledged_at).length ?? 0;
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <aside className="w-16 md:w-56 border-r border-white/8 bg-[#0a1628]/80 flex flex-col py-4 shrink-0">
-      <nav className="flex flex-col gap-1 px-2">
-        {navItems.map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group shimmer ${
-              isActive(item.href)
-                ? "bg-blue-500/15 text-[#00d4ff] border border-blue-500/25"
-                : "text-white/50 hover:text-white hover:bg-white/5"
-            }`}
+    <aside
+      className="w-[220px] shrink-0 flex flex-col h-screen sticky top-0"
+      style={{ backgroundColor: "var(--bg-sidebar)" }}
+    >
+      {/* Logo */}
+      <div className="px-5 py-5 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+        <div className="flex items-center gap-2">
+          <span className="font-serif text-[22px] leading-none" style={{ color: "var(--text-sidebar)" }}>
+            ORION
+          </span>
+          <span
+            className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded"
+            style={{ backgroundColor: "var(--accent)", color: "#fff" }}
           >
-            <span
-              className={
-                isActive(item.href)
-                  ? "text-[#00d4ff]"
-                  : "text-white/40 group-hover:text-white/80 transition-colors"
-              }
+            LABS
+          </span>
+        </div>
+        <p
+          className="text-[10px] uppercase tracking-widest mt-1"
+          style={{ color: "var(--text-sidebar-muted)" }}
+        >
+          Climate Risk Intelligence
+        </p>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.heading}>
+            <p
+              className="text-[10px] uppercase tracking-widest px-2 mb-1.5"
+              style={{ color: "var(--text-sidebar-muted)" }}
             >
-              {item.icon}
-            </span>
-            <span className="hidden md:block text-sm font-medium">{item.label}</span>
-          </Link>
+              {section.heading}
+            </p>
+            <div className="space-y-0.5">
+              {section.items.map((item) => {
+                const active = isActive(item.href);
+                const notifBadge = item.href === "/notifications" && unread > 0 ? unread : undefined;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.disabled ? "#" : item.href}
+                    onClick={item.disabled ? (e) => e.preventDefault() : undefined}
+                    className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all group ${
+                      item.disabled ? "opacity-40 cursor-not-allowed" : ""
+                    }`}
+                    style={{
+                      color:           active ? "#fff" : "var(--text-sidebar-muted)",
+                      backgroundColor: active ? "rgba(255,255,255,0.08)" : "transparent",
+                      borderLeft:      active ? "2px solid #fff" : "2px solid transparent",
+                    }}
+                  >
+                    <span>{item.icon}</span>
+                    <span className="flex-1 font-medium">{item.label}</span>
+                    {notifBadge !== undefined && (
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ backgroundColor: "var(--extreme)", color: "#fff" }}
+                      >
+                        {notifBadge}
+                      </span>
+                    )}
+                    {item.badge && notifBadge === undefined && (
+                      <span
+                        className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
+                        style={{ backgroundColor: "rgba(255,255,255,0.1)", color: "var(--text-sidebar-muted)" }}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         ))}
       </nav>
 
-      <div className="mt-auto px-2">
-        <div className="border-t border-white/8 pt-4 pb-2">
-          <div className="hidden md:block px-3 py-3 rounded-lg bg-blue-500/5 border border-blue-500/10">
-            <div className="text-[10px] text-white/40 uppercase tracking-widest mb-2">
-              Data Coverage
-            </div>
-            <div className="text-sm font-bold text-white">Turkey</div>
-            <div className="text-[11px] text-white/40 mt-0.5">ERA5 · v1_baseline</div>
-            <div className="mt-2 h-1 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full w-[82%] bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full" />
-            </div>
+      {/* Data coverage */}
+      <div className="px-4 py-4 border-t" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+        <div
+          className="rounded-lg p-3 text-[11px] space-y-1.5"
+          style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-sidebar-muted)" }}>
+            Data Coverage
+          </p>
+          <p className="font-semibold" style={{ color: "var(--text-sidebar)" }}>Turkey · 81 İl</p>
+          <p style={{ color: "var(--text-sidebar-muted)" }}>ERA5 · v1_baseline</p>
+          <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.1)" }}>
+            <div className="h-full rounded-full" style={{ width: "82%", backgroundColor: "var(--accent)" }} />
+          </div>
+        </div>
+
+        {/* User */}
+        <div className="flex items-center gap-2.5 mt-3">
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+            style={{ backgroundColor: "var(--accent)", color: "#fff" }}
+          >
+            SD
+          </div>
+          <div>
+            <p className="text-xs font-medium" style={{ color: "var(--text-sidebar)" }}>Salih Durmus</p>
+            <p className="text-[10px]" style={{ color: "var(--text-sidebar-muted)" }}>Pro Plan</p>
           </div>
         </div>
       </div>
@@ -106,5 +168,4 @@ export function Sidebar() {
   );
 }
 
-// default export for backward compat
 export default Sidebar;

@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import type { DateRangeLabel, BatchAssetInput } from "@/types";
+import type { DateRangeLabel } from "@/types";
 
 function daysAgoStr(n: number): string {
   const d = new Date();
@@ -19,6 +19,13 @@ const RANGE_DAYS: Record<DateRangeLabel, number> = {
   "365d": 365,
 };
 
+interface SelectedAsset {
+  asset_id: string;
+  name: string;
+  lat: number;
+  lon: number;
+}
+
 interface GlobalStore {
   selectedPortfolioId: string | null;
   setSelectedPortfolioId: (id: string | null) => void;
@@ -29,8 +36,8 @@ interface GlobalStore {
   setDateRange: (label: DateRangeLabel) => void;
 
   // set before navigating to /assets/[id]
-  selectedAsset: BatchAssetInput | null;
-  setSelectedAsset: (asset: BatchAssetInput | null) => void;
+  selectedAsset: SelectedAsset | null;
+  setSelectedAsset: (asset: SelectedAsset | null) => void;
 }
 
 export const useGlobalStore = create<GlobalStore>((set) => ({

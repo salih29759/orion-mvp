@@ -7,7 +7,12 @@ import {
   exportApi,
   notificationsApi,
 } from "@/lib/orionApi";
-import type { BatchScoreRequest, ExportRequest, PerilKey } from "@/types";
+import type {
+  BatchScoresRequest,
+  ExportPortfolioRequest,
+  BatchAssetInput,
+  PerilKey,
+} from "@/types";
 
 const PERILS: PerilKey[] = ["heat", "rain", "wind", "drought"];
 const CLIMATOLOGY_VERSION = "v1_baseline_2015_2024";
@@ -46,15 +51,21 @@ export function useRiskSummary(
   });
 }
 
+/** Fetches batch scores for a single asset (used on asset detail page). */
 export function useBatchScores(
-  asset: { asset_id: string; lat: number; lon: number; name: string } | null,
+  asset: Pick<BatchAssetInput, "asset_id" | "lat" | "lon"> & { name?: string } | null,
   start: string,
   end: string
 ) {
-  const req: BatchScoreRequest | null = asset
+  const req: BatchScoresRequest | null = asset
     ? {
         assets: [
-          { asset_id: asset.asset_id, lat: asset.lat, lon: asset.lon, name: asset.name },
+          {
+            asset_id: asset.asset_id,
+            lat: asset.lat,
+            lon: asset.lon,
+            name: asset.name,
+          },
         ],
         start_date: start,
         end_date: end,
@@ -75,7 +86,7 @@ export function useNotifications(portfolioId?: string) {
     queryKey: QK.notifications(portfolioId),
     queryFn: () => notificationsApi.list(portfolioId),
     retry: (failureCount, error) => {
-      // don't retry 404 — notifications endpoint may not be live yet
+      // don't retry 404 — notifications endpoint not live yet
       if ((error as Error & { status?: number }).status === 404) return false;
       return failureCount < 1;
     },
@@ -94,6 +105,6 @@ export function useAckNotification() {
 
 export function useExportPortfolio() {
   return useMutation({
-    mutationFn: (req: ExportRequest) => exportApi.portfolio(req),
+    mutationFn: (req: ExportPortfolioRequest) => exportApi.portfolio(req),
   });
 }

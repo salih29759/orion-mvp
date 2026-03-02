@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import logging
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -14,6 +15,7 @@ from app.models import (
 from app.repository import get_latest_province_score
 
 router = APIRouter()
+LOG = logging.getLogger("orion.deprecation")
 
 # Vulnerability factors: fraction of sum_insured at risk per unit of score
 _FLOOD_FACTOR = 0.0015      # 0.15 % per score point → 15 % at score=100
@@ -61,6 +63,7 @@ async def analyze_portfolio(
     db: Session = Depends(get_db),
     _: str = Depends(verify_token),
 ):
+    LOG.warning("legacy_endpoint_used path=/v1/portfolio/analyze")
     row = get_latest_province_score(db, body.province_id)
     if not row:
         raise HTTPException(

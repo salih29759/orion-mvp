@@ -1,15 +1,16 @@
-// Typed API client for the new portfolio/risk-scoring contract.
-// All calls go through the Next.js proxy at /api/orion which adds Bearer auth.
-// DO NOT call endpoints that aren't in the contract.
+// Typed API client — strictly follows backend/openapi.yaml contract.
+// All calls go through the Next.js proxy at /api/orion (server adds Bearer auth).
+// DO NOT add endpoints not in the contract.
 
 import type {
   Portfolio,
-  RiskSummary,
-  BatchScoreRequest,
-  BatchScoreResponse,
-  ExportRequest,
-  ExportResponse,
+  RiskSummaryResponse,
+  BatchScoresRequest,
+  BatchScoresResponse,
+  ExportPortfolioRequest,
+  ExportPortfolioResponse,
   Notification,
+  AckNotificationResponse,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/orion";
@@ -39,7 +40,9 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(`API ${res.status}: ${text}`);
+    const err = new Error(`API ${res.status}: ${text}`) as Error & { status: number };
+    err.status = res.status;
+    throw err;
   }
   return res.json() as Promise<T>;
 }
@@ -47,29 +50,38 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
 // ── API surface ──────────────────────────────────────────────────────────────
 
 export const portfoliosApi = {
+  /** GET /portfolios */
   list: () => apiGet<Portfolio[]>("/portfolios"),
 
+  /** GET /portfolios/{portfolio_id}/risk-summary?start=...&end=... */
   riskSummary: (portfolioId: string, start: string, end: string) =>
-    apiGet<RiskSummary>(`/portfolios/${portfolioId}/risk-summary`, { start, end }),
+    apiGet<RiskSummaryResponse>(`/portfolios/${portfolioId}/risk-summary`, {
+      start,
+      end,
+    }),
 };
 
 export const scoresApi = {
-  batch: (req: BatchScoreRequest) =>
-    apiPost<BatchScoreResponse>("/scores/batch", req),
+  /** POST /scores/batch */
+  batch: (req: BatchScoresRequest) =>
+    apiPost<BatchScoresResponse>("/scores/batch", req),
 };
 
 export const exportApi = {
-  portfolio: (req: ExportRequest) =>
-    apiPost<ExportResponse>("/export/portfolio", req),
+  /** POST /export/portfolio */
+  portfolio: (req: ExportPortfolioRequest) =>
+    apiPost<ExportPortfolioResponse>("/export/portfolio", req),
 };
 
 export const notificationsApi = {
+  /** GET /notifications?portfolio_id=... */
   list: (portfolioId?: string) =>
     apiGet<Notification[]>(
       "/notifications",
       portfolioId ? { portfolio_id: portfolioId } : undefined
     ),
 
+  /** POST /notifications/{notification_id}/ack */
   ack: (id: string) =>
-    apiPost<{ success: boolean }>(`/notifications/${id}/ack`, {}),
+    apiPost<AckNotificationResponse>(`/notifications/${id}/ack`, {}),
 };

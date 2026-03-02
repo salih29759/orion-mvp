@@ -1,69 +1,73 @@
-// API Contract Types — strictly follows backend OpenAPI contract
-// DO NOT add fields that aren't in the contract.
+// API Contract Types — generated from backend/openapi.yaml
+// Single source of truth: backend/openapi.yaml
+// DO NOT add fields not present in that file.
 
 export type PerilKey = "heat" | "rain" | "wind" | "drought" | "wildfire";
 export type AllPerilKey = "all" | PerilKey;
 export type BandKey = "minimal" | "minor" | "moderate" | "major" | "extreme";
 export type DateRangeLabel = "30d" | "90d" | "365d";
 
+// ── Shared primitives (openapi.yaml component schemas) ────────────────────────
+
+/** ScoresObject: open map of peril → 0-100 float */
+export type ScoresObject = Partial<Record<AllPerilKey, number | null>>;
+
+/** BandsObject: open map of peril → band label */
+export type BandsObject = Partial<Record<AllPerilKey, BandKey | null>>;
+
+/** DriversObject: open map of peril → string[] */
+export type DriversObject = Partial<Record<PerilKey, string[]>>;
+
+export interface BandCounts {
+  minimal?: number;
+  minor?: number;
+  moderate?: number;
+  major?: number;
+  extreme?: number;
+}
+
 // ── GET /portfolios ──────────────────────────────────────────────────────────
+
 export interface Portfolio {
   portfolio_id: string;
   name: string;
 }
 
-// ── GET /portfolios/{id}/risk-summary ────────────────────────────────────────
-export interface RiskSummaryTopAsset {
+// ── GET /portfolios/{portfolio_id}/risk-summary ───────────────────────────────
+
+export interface RiskTrendPoint {
+  date: string;
+  scores: ScoresObject;
+}
+
+export interface TopAsset {
   asset_id: string;
   name: string;
   lat: number;
   lon: number;
   band: BandKey;
-  scores: {
-    all: number;
-    heat: number;
-    rain: number;
-    wind: number;
-    drought: number;
-    wildfire?: number | null;
-  };
+  scores: ScoresObject;
 }
 
-export interface RiskSummaryTrendPoint {
-  date: string;
-  all: number;
-  heat: number;
-  rain: number;
-  wind: number;
-  drought: number;
-  wildfire?: number | null;
-}
-
-export interface RiskSummary {
+export interface RiskSummaryResponse {
   portfolio_id: string;
   period: { start: string; end: string };
-  bands: Record<BandKey, number>;
-  peril_averages: {
-    all: number | null;
-    heat: number | null;
-    rain: number | null;
-    wind: number | null;
-    drought: number | null;
-    wildfire: number | null;
-  };
-  top_assets: RiskSummaryTopAsset[];
-  trend: RiskSummaryTrendPoint[];
+  bands: BandCounts;
+  peril_averages: ScoresObject;
+  top_assets: TopAsset[];
+  trend: RiskTrendPoint[];
 }
 
 // ── POST /scores/batch ───────────────────────────────────────────────────────
+
 export interface BatchAssetInput {
   asset_id: string;
   lat: number;
   lon: number;
-  name: string;
+  name?: string;
 }
 
-export interface BatchScoreRequest {
+export interface BatchScoresRequest {
   assets: BatchAssetInput[];
   start_date: string;
   end_date: string;
@@ -71,44 +75,55 @@ export interface BatchScoreRequest {
   include_perils: PerilKey[];
 }
 
-export interface ScorePoint {
+export interface ScoreSeriesPoint {
   date: string;
-  scores: Partial<Record<AllPerilKey, number | null>>;
-  bands: Partial<Record<AllPerilKey, BandKey | null>>;
-  drivers: Partial<Record<PerilKey, string[]>>;
+  scores: ScoresObject;
+  bands: BandsObject;
+  drivers?: DriversObject;
 }
 
-export interface BatchScoreResponse {
+export interface BatchScoresResponse {
   run_id: string;
+  climatology_version: string;
   results: Array<{
     asset_id: string;
-    series: ScorePoint[];
+    series: ScoreSeriesPoint[];
   }>;
 }
 
 // ── POST /export/portfolio ───────────────────────────────────────────────────
-export interface ExportRequest {
+
+export interface ExportPortfolioRequest {
   portfolio_id: string;
   start_date: string;
   end_date: string;
   format: "csv";
-  include_drivers: boolean;
+  include_drivers?: boolean;
 }
 
-export interface ExportResponse {
+export interface ExportPortfolioResponse {
   export_id: string;
-  status: "queued" | "processing" | "done" | "error";
+  status: "queued" | "running" | "success" | "failed";
   path: string;
   download_url: string | null;
 }
 
 // ── GET /notifications ───────────────────────────────────────────────────────
+
 export interface Notification {
   id: string;
-  severity: "high" | "medium";
+  severity: "low" | "medium" | "high";
   type: string;
+  portfolio_id?: string | null;
   asset_id: string;
   created_at: string;
+  acknowledged_at: string | null;
   payload: Record<string, unknown>;
-  acknowledged?: boolean;
+}
+
+// ── POST /notifications/{notification_id}/ack ────────────────────────────────
+
+export interface AckNotificationResponse {
+  id: string;
+  acknowledged_at: string;
 }

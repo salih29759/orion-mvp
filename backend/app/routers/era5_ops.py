@@ -29,6 +29,7 @@ from app.models import (
     FirmsIngestRequest,
     FirmsIngestResponse,
     NotificationItem,
+    PortfolioItem,
     PortfolioExportRequest,
     PortfolioExportResponse,
     PortfolioRiskSummaryResponse,
@@ -207,12 +208,9 @@ async def climatology_build(body: ClimatologyBuildRequest, _: str = Depends(veri
         level=body.level,
     )
     return ClimatologyBuildResponse(
-        status="success",
-        run_id=out["run_id"],
-        climatology_version=out["climatology_version"],
         version=out["climatology_version"],
+        status="success",
         row_count=out["row_count"],
-        thresholds_gcs_uri=out.get("thresholds_gcs_uri"),
     )
 
 
@@ -228,16 +226,11 @@ async def scores_batch(body: ScoreBatchRequest, _: str = Depends(verify_token)):
         persist=body.persist,
         include_perils=include_perils,
     )
-    typed_assets: dict[str, list] = {}
-    for aid, rows in out["assets"].items():
-        typed_assets[aid] = rows
     results = _to_batch_results(out["assets"], include_perils=include_perils)
     return ScoreBatchResponse(
-        status="success",
         run_id=out["run_id"],
         climatology_version=body.climatology_version,
         results=results,
-        assets=typed_assets,
     )
 
 
@@ -252,7 +245,7 @@ async def scores_benchmark(body: ScoreBenchmarkRequest, _: str = Depends(verify_
     return ScoreBenchmarkResponse(status="success", **out)
 
 
-@router.get("/portfolios")
+@router.get("/portfolios", response_model=list[PortfolioItem])
 async def list_portfolios(_: str = Depends(verify_token)):
     with SessionLocal() as db:
         ids = db.execute(select(PortfolioAssetORM.portfolio_id).distinct().order_by(PortfolioAssetORM.portfolio_id)).all()
@@ -266,20 +259,17 @@ async def portfolio_summary(
     end: date = Query(...),
     _: str = Depends(verify_token),
 ):
+    if start > end:
+        raise HTTPException(status_code=422, detail="start must be <= end")
     out = portfolio_risk_summary(portfolio_id, start, end)
+    period = {"start": start, "end": end}
     return PortfolioRiskSummaryResponse(
-        status="success",
         portfolio_id=portfolio_id,
-        start_date=start,
-        end_date=end,
-        period={"start": start.isoformat(), "end": end.isoformat()},
+        period=period,
         bands=out.get("bands", {}),
         peril_averages=out.get("peril_averages", {}),
         top_assets=out.get("top_assets", []),
         trend=out.get("trend", []),
-        distribution=out["distribution"],
-        top_10_assets=out["top_10_assets"],
-        trend_summary=out["trend_summary"],
     )
 
 
@@ -452,12 +442,10 @@ async def export_portfolio(body: PortfolioExportRequest, _: str = Depends(verify
         )
     )
     return PortfolioExportResponse(
-        status="success",
         export_id=export_id,
+        status="success",
         path=gcs_uri,
         download_url=signed_url,
-        row_count=len(rows),
-        export_url=signed_url or gcs_uri,
     )
 
 
@@ -472,10 +460,13 @@ async def notifications(portfolio_id: str | None = Query(default=None), _: str =
                 payload = json.loads(row.payload_json)
             except Exception:  # noqa: BLE001
                 payload = {"raw": row.payload_json}
+        severity = (row.severity or "low").lower()
+        if severity not in {"low", "medium", "high"}:
+            severity = "low"
         out.append(
             NotificationItem(
                 id=row.id,
-                severity=row.severity,
+                severity=severity,
                 type=row.type,
                 portfolio_id=row.portfolio_id,
                 asset_id=row.asset_id,
@@ -490,9 +481,9 @@ async def notifications(portfolio_id: str | None = Query(default=None), _: str =
 @router.post("/notifications/{notification_id}/ack", response_model=AckNotificationResponse)
 async def notification_ack(notification_id: str, _: str = Depends(verify_token)):
     row = ack_notification(notification_id)
-    if not row or not row.acknowledged_at:
+    if not row or not row.get("acknowledged_at"):
         raise HTTPException(status_code=404, detail=f"Notification '{notification_id}' not found")
-    return AckNotificationResponse(id=row.id, acknowledged_at=row.acknowledged_at)
+    return AckNotificationResponse(id=row["id"], acknowledged_at=row["acknowledged_at"])
 
 
 @router.get("/health/metrics")

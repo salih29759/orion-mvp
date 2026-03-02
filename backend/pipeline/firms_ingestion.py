@@ -473,7 +473,7 @@ def list_notifications(portfolio_id: str | None = None) -> list[NotificationORM]
     return rows
 
 
-def ack_notification(notification_id: str) -> NotificationORM | None:
+def ack_notification(notification_id: str) -> dict[str, Any] | None:
     with SessionLocal() as db:
         row = db.get(NotificationORM, notification_id)
         if not row:
@@ -481,7 +481,7 @@ def ack_notification(notification_id: str) -> NotificationORM | None:
         if row.acknowledged_at is None:
             row.acknowledged_at = datetime.now(timezone.utc)
             db.commit()
-        return row
+        return {"id": row.id, "acknowledged_at": row.acknowledged_at}
 
 
 def get_asset_wildfire_features(asset_id: str, window: str) -> dict[str, Any] | None:

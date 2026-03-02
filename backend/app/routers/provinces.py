@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.auth import verify_token
@@ -7,6 +8,7 @@ from app.models import Province, ProvinceDetailResponse, ProvincesResponse, Risk
 from app.repository import get_latest_as_of_date, get_latest_province_score, list_latest_province_scores
 
 router = APIRouter()
+LOG = logging.getLogger("orion.deprecation")
 
 
 def _to_province(payload: tuple) -> Province:
@@ -46,6 +48,7 @@ async def list_provinces(
     db: Session = Depends(get_db),
     _: str = Depends(verify_token),
 ):
+    LOG.warning("legacy_endpoint_used path=/v1/risk/provinces")
     rows = list_latest_province_scores(
         db,
         region=region,
@@ -75,6 +78,7 @@ async def get_province(
     db: Session = Depends(get_db),
     _: str = Depends(verify_token),
 ):
+    LOG.warning("legacy_endpoint_used path=/v1/risk/provinces/{province_id}")
     row = get_latest_province_score(db, province_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"Province '{province_id}' not found")

@@ -298,14 +298,18 @@ class PortfolioExportRequest(BaseModel):
     include_wildfire: bool = False
     assets: list[AssetPoint] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.start_date > self.end_date:
+            raise ValueError("start_date must be <= end_date")
+        return self
+
 
 class PortfolioExportResponse(BaseModel):
-    status: str
     export_id: str
-    path: str | None = None
+    status: Literal["queued", "running", "success", "failed"]
+    path: str
     download_url: str | None = None
-    row_count: int
-    export_url: str | None = None
 
 
 class ClimatologyBuildRequest(BaseModel):
@@ -326,12 +330,9 @@ class ClimatologyBuildRequest(BaseModel):
 
 
 class ClimatologyBuildResponse(BaseModel):
-    status: str
-    run_id: str
-    climatology_version: str
-    version: str | None = None
+    version: str
+    status: Literal["success", "failed", "running"]
     row_count: int
-    thresholds_gcs_uri: str | None = None
 
 
 class ScoreBatchRequest(BaseModel):
@@ -344,6 +345,12 @@ class ScoreBatchRequest(BaseModel):
     )
     persist: bool = True
 
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.start_date > self.end_date:
+            raise ValueError("start_date must be <= end_date")
+        return self
+
 
 class ScorePoint(BaseModel):
     date: date
@@ -354,12 +361,22 @@ class ScorePoint(BaseModel):
     drivers: list[str]
 
 
+class ScoreSeriesPoint(BaseModel):
+    date: date
+    scores: dict[str, float]
+    bands: dict[str, str]
+    drivers: dict[str, list[str]] | None = None
+
+
+class BatchScoresResult(BaseModel):
+    asset_id: str
+    series: list[ScoreSeriesPoint]
+
+
 class ScoreBatchResponse(BaseModel):
-    status: str
     run_id: str
     climatology_version: str
-    results: list[dict[str, Any]] | None = None
-    assets: dict[str, list[ScorePoint]]
+    results: list[BatchScoresResult]
 
 
 class ScoreBenchmarkRequest(BaseModel):
@@ -379,19 +396,45 @@ class ScoreBenchmarkResponse(BaseModel):
     per_asset_day_ms: float
 
 
-class PortfolioRiskSummaryResponse(BaseModel):
-    status: str
+class RiskTrendPoint(BaseModel):
+    date: date
+    scores: dict[str, float]
+
+
+class TopAssetItem(BaseModel):
+    asset_id: str
+    name: str
+    lat: float
+    lon: float
+    band: str
+    scores: dict[str, float]
+
+
+class BandCounts(BaseModel):
+    minimal: int = 0
+    minor: int = 0
+    moderate: int = 0
+    major: int = 0
+    extreme: int = 0
+
+
+class PeriodRange(BaseModel):
+    start: date
+    end: date
+
+
+class PortfolioItem(BaseModel):
     portfolio_id: str
-    start_date: date
-    end_date: date
-    period: dict[str, Any] | None = None
-    bands: dict[str, int] | None = None
-    peril_averages: dict[str, float] | None = None
-    top_assets: list[dict[str, Any]] | None = None
-    trend: list[dict[str, Any]] | None = None
-    distribution: dict[str, dict[str, int]]
-    top_10_assets: list[dict[str, Any]]
-    trend_summary: dict[str, Any]
+    name: str
+
+
+class PortfolioRiskSummaryResponse(BaseModel):
+    portfolio_id: str
+    period: PeriodRange
+    bands: BandCounts
+    peril_averages: dict[str, float]
+    top_assets: list[TopAssetItem]
+    trend: list[RiskTrendPoint]
 
 
 class FirmsIngestRequest(BaseModel):

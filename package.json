@@ -11,14 +11,21 @@
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.575.0",
+    "mapbox-gl": "^3.19.0",
     "maplibre-gl": "^5.19.0",
     "next": "^16.1.6",
     "react": "^18",
     "react-dom": "^18",
+    "react-hot-toast": "^2.6.0",
     "recharts": "^3.7.0",
+    "tailwind-merge": "^3.5.0",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@mapbox/point-geometry": "^1.1.0",
+    "@types/mapbox-gl": "^3.4.1",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

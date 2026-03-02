@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+import logging
 from fastapi import APIRouter, Depends, Query
 
 from app.auth import verify_token
@@ -7,6 +8,7 @@ from app.database import get_db
 from app.repository import list_active_alerts as repo_list_active_alerts
 
 router = APIRouter()
+LOG = logging.getLogger("orion.deprecation")
 
 
 def _to_alert(payload: tuple) -> Alert:
@@ -36,6 +38,7 @@ async def list_active_alerts(
     db: Session = Depends(get_db),
     _: str = Depends(verify_token),
 ):
+    LOG.warning("legacy_endpoint_used path=/v1/alerts/active")
     rows = repo_list_active_alerts(db, level=level.value if level else None, limit=limit)
     alerts = [_to_alert(row) for row in rows]
     has_wildfire = any(a.risk_type == "WILDFIRE" for a in alerts)
