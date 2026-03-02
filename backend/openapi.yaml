@@ -1,0 +1,783 @@
+openapi: 3.0.3
+info:
+  title: Orion Climate Risk API
+  version: 0.1.0
+  description: |
+    Turkey-focused climate risk scoring API (ERA5-Land backbone + FIRMS wildfire optional).
+    This contract is the single source of truth for both backend (Codex) and frontend (Claude).
+servers:
+  - url: https://api.example.com
+    description: Production
+  - url: http://localhost:8080
+    description: Local
+
+tags:
+  - name: Health
+  - name: Portfolios
+  - name: Assets
+  - name: Scores
+  - name: Exports
+  - name: Jobs
+  - name: Climatology
+  - name: Notifications
+  - name: FIRMS
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error_code, message]
+      properties:
+        error_code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Invalid date range.
+        details:
+          type: object
+          additionalProperties: true
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+        version:
+          type: string
+          example: 0.1.0
+
+    MetricsResponse:
+      type: object
+      properties:
+        jobs_last_24h:
+          type: integer
+          example: 12
+        success_rate:
+          type: number
+          format: float
+          example: 0.92
+        avg_duration_seconds:
+          type: number
+          format: float
+          example: 34.6
+        bytes_downloaded_last_24h:
+          type: integer
+          example: 123456789
+
+    Portfolio:
+      type: object
+      required: [portfolio_id, name]
+      properties:
+        portfolio_id:
+          type: string
+          example: prt_123
+        name:
+          type: string
+          example: Turkey Portfolio A
+
+    BandCounts:
+      type: object
+      properties:
+        minimal:
+          type: integer
+          example: 12
+        minor:
+          type: integer
+          example: 8
+        moderate:
+          type: integer
+          example: 4
+        major:
+          type: integer
+          example: 1
+        extreme:
+          type: integer
+          example: 0
+      additionalProperties: false
+
+    ScoresObject:
+      type: object
+      description: Numeric scores 0-100
+      additionalProperties:
+        type: number
+        format: float
+      example:
+        all: 61
+        heat: 72
+        rain: 40
+        wind: 33
+        drought: 55
+        wildfire: 20
+
+    BandsObject:
+      type: object
+      description: Band labels for each peril
+      additionalProperties:
+        type: string
+      example:
+        all: moderate
+        heat: major
+        rain: minor
+        wind: minor
+        drought: moderate
+
+    DriversObject:
+      type: object
+      description: Human-readable explainability drivers
+      additionalProperties:
+        type: array
+        items:
+          type: string
+      example:
+        heat:
+          - "12 hot days above local p95 in last 30d"
+          - "max excess 4.3C"
+        rain:
+          - "7d precip 180mm above local p99"
+
+    RiskTrendPoint:
+      type: object
+      required: [date, scores]
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2024-01-01"
+        scores:
+          $ref: "#/components/schemas/ScoresObject"
+
+    TopAsset:
+      type: object
+      required: [asset_id, name, lat, lon, band, scores]
+      properties:
+        asset_id:
+          type: string
+          example: ast_001
+        name:
+          type: string
+          example: "Istanbul DC-1"
+        lat:
+          type: number
+          format: float
+          example: 41.0082
+        lon:
+          type: number
+          format: float
+          example: 28.9784
+        band:
+          type: string
+          example: major
+        scores:
+          $ref: "#/components/schemas/ScoresObject"
+
+    RiskSummaryResponse:
+      type: object
+      required: [portfolio_id, period, bands, peril_averages, top_assets, trend]
+      properties:
+        portfolio_id:
+          type: string
+          example: prt_123
+        period:
+          type: object
+          required: [start, end]
+          properties:
+            start:
+              type: string
+              format: date
+              example: "2024-01-01"
+            end:
+              type: string
+              format: date
+              example: "2024-03-31"
+        bands:
+          $ref: "#/components/schemas/BandCounts"
+        peril_averages:
+          $ref: "#/components/schemas/ScoresObject"
+        top_assets:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopAsset"
+        trend:
+          type: array
+          items:
+            $ref: "#/components/schemas/RiskTrendPoint"
+
+    Asset:
+      type: object
+      required: [asset_id, name, lat, lon]
+      properties:
+        asset_id:
+          type: string
+          example: ast_001
+        name:
+          type: string
+          example: "Istanbul DC-1"
+        lat:
+          type: number
+          format: float
+          example: 41.0082
+        lon:
+          type: number
+          format: float
+          example: 28.9784
+        address:
+          type: string
+          nullable: true
+          example: "Istanbul, Turkey"
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ScoreSeriesPoint:
+      type: object
+      required: [date, scores, bands]
+      properties:
+        date:
+          type: string
+          format: date
+        scores:
+          $ref: "#/components/schemas/ScoresObject"
+        bands:
+          $ref: "#/components/schemas/BandsObject"
+        drivers:
+          $ref: "#/components/schemas/DriversObject"
+
+    BatchScoresResult:
+      type: object
+      required: [asset_id, series]
+      properties:
+        asset_id:
+          type: string
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreSeriesPoint"
+
+    BatchScoresRequest:
+      type: object
+      required: [assets, start_date, end_date, climatology_version, include_perils]
+      properties:
+        assets:
+          type: array
+          items:
+            type: object
+            required: [asset_id, lat, lon]
+            properties:
+              asset_id:
+                type: string
+              lat:
+                type: number
+                format: float
+              lon:
+                type: number
+                format: float
+              name:
+                type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        climatology_version:
+          type: string
+          example: v1_baseline_2015_2024
+        include_perils:
+          type: array
+          items:
+            type: string
+            enum: [heat, rain, wind, drought, wildfire, all]
+          example: [heat, rain, wind, drought]
+
+    BatchScoresResponse:
+      type: object
+      required: [run_id, climatology_version, results]
+      properties:
+        run_id:
+          type: string
+          example: run_abc123
+        climatology_version:
+          type: string
+          example: v1_baseline_2015_2024
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchScoresResult"
+
+    ExportPortfolioRequest:
+      type: object
+      required: [portfolio_id, start_date, end_date, format]
+      properties:
+        portfolio_id:
+          type: string
+          example: prt_123
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        format:
+          type: string
+          enum: [csv]
+          example: csv
+        include_drivers:
+          type: boolean
+          default: true
+
+    ExportPortfolioResponse:
+      type: object
+      required: [export_id, status, path]
+      properties:
+        export_id:
+          type: string
+          example: exp_123
+        status:
+          type: string
+          enum: [queued, running, success, failed]
+          example: queued
+        path:
+          type: string
+          example: "gs://bucket/exports/prt_123/exp_123.csv"
+        download_url:
+          type: string
+          nullable: true
+          example: null
+
+    JobStatusResponse:
+      type: object
+      required: [job_id, status, type, created_at]
+      properties:
+        job_id:
+          type: string
+          example: job_123
+        status:
+          type: string
+          enum: [queued, running, success, failed, success_with_warnings, fail_dq]
+        type:
+          type: string
+          example: era5_backfill
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        progress:
+          type: object
+          additionalProperties: true
+        children:
+          type: array
+          items:
+            type: string
+          description: Optional list of child job_ids (e.g., month jobs)
+
+    BackfillRequest:
+      type: object
+      required: [start_month, end_month, bbox, variables, mode]
+      properties:
+        start_month:
+          type: string
+          example: "2015-01"
+        end_month:
+          type: string
+          example: "2024-12"
+        bbox:
+          type: object
+          required: [north, west, south, east]
+          properties:
+            north: { type: number, format: float }
+            west:  { type: number, format: float }
+            south: { type: number, format: float }
+            east:  { type: number, format: float }
+        variables:
+          type: array
+          items: { type: string }
+        mode:
+          type: string
+          enum: [monthly]
+          example: monthly
+        concurrency:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 2
+
+    ClimatologyBuildRequest:
+      type: object
+      required: [version, baseline_start, baseline_end, level]
+      properties:
+        version:
+          type: string
+          example: v1_baseline_2015_2024
+        baseline_start:
+          type: string
+          format: date
+          example: "2015-01-01"
+        baseline_end:
+          type: string
+          format: date
+          example: "2024-12-31"
+        level:
+          type: string
+          enum: [month, doy]
+          example: doy
+
+    ClimatologyBuildResponse:
+      type: object
+      required: [version, status, row_count]
+      properties:
+        version:
+          type: string
+        status:
+          type: string
+          enum: [success, failed, running]
+        row_count:
+          type: integer
+          example: 11651
+
+    Notification:
+      type: object
+      required: [id, severity, type, asset_id, created_at, payload]
+      properties:
+        id:
+          type: string
+          example: ntf_001
+        severity:
+          type: string
+          enum: [low, medium, high]
+          example: high
+        type:
+          type: string
+          example: wildfire_proximity
+        portfolio_id:
+          type: string
+          nullable: true
+          example: prt_123
+        asset_id:
+          type: string
+          example: ast_001
+        created_at:
+          type: string
+          format: date-time
+        acknowledged_at:
+          type: string
+          format: date-time
+          nullable: true
+        payload:
+          type: object
+          additionalProperties: true
+
+    AckNotificationResponse:
+      type: object
+      required: [id, acknowledged_at]
+      properties:
+        id:
+          type: string
+        acknowledged_at:
+          type: string
+          format: date-time
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /health/metrics:
+    get:
+      tags: [Health]
+      summary: Basic operational metrics
+      responses:
+        "200":
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricsResponse"
+
+  /portfolios:
+    get:
+      tags: [Portfolios]
+      summary: List portfolios
+      responses:
+        "200":
+          description: List of portfolios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Portfolio"
+
+  /portfolios/{portfolio_id}/risk-summary:
+    get:
+      tags: [Portfolios]
+      summary: Portfolio risk summary
+      parameters:
+        - name: portfolio_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: start
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: end
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Risk summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskSummaryResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /scores/batch:
+    post:
+      tags: [Scores]
+      summary: Batch scoring for assets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchScoresRequest"
+      responses:
+        "200":
+          description: Batch scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchScoresResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /export/portfolio:
+    post:
+      tags: [Exports]
+      summary: Create a portfolio export
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportPortfolioRequest"
+      responses:
+        "200":
+          description: Export queued/created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportPortfolioResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /jobs/era5/backfill:
+    post:
+      tags: [Jobs]
+      summary: Start ERA5 backfill (month-by-month)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackfillRequest"
+      responses:
+        "202":
+          description: Backfill job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatusResponse"
+
+  /jobs/{job_id}:
+    get:
+      tags: [Jobs]
+      summary: Get job status
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatusResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /climatology/build:
+    post:
+      tags: [Climatology]
+      summary: Build climatology tables (month or DOY)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClimatologyBuildRequest"
+      responses:
+        "200":
+          description: Climatology build result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClimatologyBuildResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: List notifications
+      parameters:
+        - name: portfolio_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Notification list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/{notification_id}/ack:
+    post:
+      tags: [Notifications]
+      summary: Acknowledge notification
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AckNotificationResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /jobs/firms/ingest:
+    post:
+      tags: [FIRMS]
+      summary: Start FIRMS ingest for date range
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source, bbox, start_date, end_date]
+              properties:
+                source: { type: string, example: VIIRS_SNPP_NRT }
+                bbox:
+                  type: object
+                  required: [north, west, south, east]
+                  properties:
+                    north: { type: number, format: float }
+                    west: { type: number, format: float }
+                    south: { type: number, format: float }
+                    east: { type: number, format: float }
+                start_date: { type: string, format: date }
+                end_date: { type: string, format: date }
+      responses:
+        "202":
+          description: FIRMS ingest accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatusResponse"
+
+  /cron/firms/daily-update:
+    post:
+      tags: [FIRMS]
+      summary: Daily FIRMS incremental update
+      responses:
+        "200":
+          description: Triggered
+
+  /assets/{asset_id}/wildfire-features:
+    get:
+      tags: [Assets, FIRMS]
+      summary: Asset wildfire proximity features
+      parameters:
+        - name: asset_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: window
+          in: query
+          required: false
+          schema: { type: string, enum: [24h, 7d], default: 24h }
+      responses:
+        "200":
+          description: Wildfire features
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: success }
+                  asset_id: { type: string }
+                  window: { type: string }
+                  nearest_fire_distance_km: { type: number, nullable: true }
+                  fires_within_10km_count: { type: integer }
+                  max_frp_within_20km: { type: number, nullable: true }

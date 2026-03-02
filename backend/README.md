@@ -1,5 +1,7 @@
 # Orion Backend (Real API Data: Open-Meteo + optional NASA FIRMS)
 
+OpenAPI contract source of truth: `backend/openapi.yaml`
+
 ## Local setup
 
 ```bash
@@ -69,6 +71,14 @@ Daily incremental update (scheduler):
 
 - `POST /cron/era5/daily-update` with `x-cron-secret`
 
+FIRMS ingestion (Path B):
+
+- `POST /jobs/firms/ingest`
+- `POST /cron/firms/daily-update` with `x-cron-secret`
+- `GET /assets/{asset_id}/wildfire-features?window=24h|7d`
+- `GET /notifications?portfolio_id=...`
+- `POST /notifications/{notification_id}/ack`
+
 Feature query:
 
 - `GET /features/era5?lat=..&lon=..&start=YYYY-MM-DD&end=YYYY-MM-DD`
@@ -89,6 +99,7 @@ Climatology build:
 Batch scoring:
 
 - `POST /scores/batch`
+- `POST /scores/benchmark`
 
 Portfolio summary:
 
@@ -159,6 +170,20 @@ curl -X POST "https://orion-api-126886725893.europe-west1.run.app/climatology/bu
   }'
 ```
 
+Build DOY climatology (optional higher fidelity):
+
+```bash
+curl -X POST "https://orion-api-126886725893.europe-west1.run.app/climatology/build" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "climatology_version":"v2_doy_baseline_2015_2024",
+    "baseline_start":"2015-01-01",
+    "baseline_end":"2024-12-31",
+    "level":"doy"
+  }'
+```
+
 Batch scoring (100 assets style):
 
 ```bash
@@ -172,6 +197,41 @@ curl -X POST "https://orion-api-126886725893.europe-west1.run.app/scores/batch" 
     "climatology_version":"v1_baseline_2015_2024",
     "persist": true
   }'
+```
+
+Benchmark (100 assets x 90 days):
+
+```bash
+curl -X POST "https://orion-api-126886725893.europe-west1.run.app/scores/benchmark" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assets_count":100,
+    "start_date":"2024-01-01",
+    "end_date":"2024-03-30",
+    "climatology_version":"v1_baseline_2015_2024"
+  }'
+```
+
+FIRMS ingest example:
+
+```bash
+curl -X POST "https://orion-api-126886725893.europe-west1.run.app/jobs/firms/ingest" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source":"VIIRS_SNPP_NRT",
+    "bbox":{"north":42,"west":26,"south":36,"east":45},
+    "start_date":"2026-02-28",
+    "end_date":"2026-03-01"
+  }'
+```
+
+Daily FIRMS cron trigger:
+
+```bash
+curl -X POST "https://orion-api-126886725893.europe-west1.run.app/cron/firms/daily-update" \
+  -H "x-cron-secret: $CRON_SECRET"
 ```
 
 ## CDS / ERA5 smoke test
@@ -212,6 +272,8 @@ Check latest run:
 - `MODEL_VERSION`
 - `DEFAULT_DATA_SOURCE`
 - `FIRMS_MAP_KEY` (optional, for wildfire alerts)
+- `FIRMS_MAP_KEY` is used with NASA FIRMS Area CSV endpoint:
+  - `https://firms.modaps.eosdis.nasa.gov/api/area/csv/{MAP_KEY}/{SOURCE}/{W,S,E,N}/{DAY_RANGE}`
 - `FIRMS_SOURCE` (optional, default `VIIRS_SNPP_NRT`)
 - `FIRMS_DAY_RANGE` (optional, default `2`)
 - `WILDFIRE_RADIUS_KM` (optional, default `75`)

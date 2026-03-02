@@ -199,6 +199,28 @@ class ClimatologyThresholdORM(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
+class ClimatologyThresholdDoyORM(Base):
+    __tablename__ = "climatology_thresholds_doy"
+    __table_args__ = (
+        UniqueConstraint("climatology_version", "cell_lat", "cell_lng", "doy", name="uq_clim_version_cell_doy"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    climatology_version: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    cell_lat: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    cell_lng: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    doy: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    temp_max_p95: Mapped[float | None] = mapped_column(Float, nullable=True)
+    wind_max_p95: Mapped[float | None] = mapped_column(Float, nullable=True)
+    precip_1d_p95: Mapped[float | None] = mapped_column(Float, nullable=True)
+    precip_1d_p99: Mapped[float | None] = mapped_column(Float, nullable=True)
+    precip_7d_p95: Mapped[float | None] = mapped_column(Float, nullable=True)
+    precip_7d_p99: Mapped[float | None] = mapped_column(Float, nullable=True)
+    precip_30d_p10: Mapped[float | None] = mapped_column(Float, nullable=True)
+    soil_moisture_p10: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class AssetRiskScoreORM(Base):
     __tablename__ = "asset_risk_scores"
     __table_args__ = (
@@ -240,3 +262,60 @@ class PortfolioAssetORM(Base):
     lat: Mapped[float] = mapped_column(Float, nullable=False)
     lon: Mapped[float] = mapped_column(Float, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class FirmsIngestJobORM(Base):
+    __tablename__ = "firms_ingest_jobs"
+
+    job_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    request_signature: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True, default="queued")
+    source: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    bbox_csv: Mapped[str] = mapped_column(String(128), nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    rows_fetched: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rows_inserted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    raw_gcs_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class FireEventORM(Base):
+    __tablename__ = "fires"
+    __table_args__ = (
+        UniqueConstraint("source", "time_utc", "lat_round", "lon_round", name="uq_fire_event_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    time_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    lat: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    lon: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    lat_round: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    lon_round: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    geom_wkt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    frp: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    satellite: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    source: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    raw_job_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("firms_ingest_jobs.job_id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class NotificationORM(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (UniqueConstraint("dedup_key", name="uq_notification_dedup"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    portfolio_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    asset_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    dedup_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

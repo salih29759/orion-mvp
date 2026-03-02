@@ -4,85 +4,98 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   {
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    ),
     label: "Dashboard",
     href: "/",
-  },
-  {
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
       </svg>
     ),
-    label: "Risk Map",
-    href: "/",
-    badge: null,
   },
   {
+    label: "Portfolio",
+    href: "/portfolio",
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
       </svg>
     ),
-    label: "Alerts",
-    href: "/",
-    badge: "6",
   },
   {
+    label: "Assets",
+    href: "/assets",
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
       </svg>
     ),
+  },
+  {
+    label: "Notifications",
+    href: "/notifications",
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+      </svg>
+    ),
+  },
+  {
     label: "API Docs",
     href: "/api-docs",
-    badge: null,
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+      </svg>
+    ),
   },
 ];
 
-export default function Sidebar() {
+export function Sidebar() {
   const pathname = usePathname();
+
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
     <aside className="w-16 md:w-56 border-r border-white/8 bg-[#0a1628]/80 flex flex-col py-4 shrink-0">
       <nav className="flex flex-col gap-1 px-2">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href && item.href !== "/" || (item.href === "/" && pathname === "/");
-          return (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group shimmer ${
-                isActive
-                  ? "bg-blue-500/15 text-[#00d4ff] border border-blue-500/25"
-                  : "text-white/50 hover:text-white hover:bg-white/5"
-              }`}
+        {navItems.map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group shimmer ${
+              isActive(item.href)
+                ? "bg-blue-500/15 text-[#00d4ff] border border-blue-500/25"
+                : "text-white/50 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <span
+              className={
+                isActive(item.href)
+                  ? "text-[#00d4ff]"
+                  : "text-white/40 group-hover:text-white/80 transition-colors"
+              }
             >
-              <span className={isActive ? "text-[#00d4ff]" : "text-white/40 group-hover:text-white/80 transition-colors"}>
-                {item.icon}
-              </span>
-              <span className="hidden md:block text-sm font-medium">{item.label}</span>
-              {item.badge && (
-                <span className="hidden md:flex ml-auto text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded-full">
-                  {item.badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+              {item.icon}
+            </span>
+            <span className="hidden md:block text-sm font-medium">{item.label}</span>
+          </Link>
+        ))}
       </nav>
 
-      {/* Bottom section */}
       <div className="mt-auto px-2">
         <div className="border-t border-white/8 pt-4 pb-2">
           <div className="hidden md:block px-3 py-3 rounded-lg bg-blue-500/5 border border-blue-500/10">
-            <div className="text-[10px] text-white/40 uppercase tracking-widest mb-2">Data Coverage</div>
-            <div className="text-sm font-bold text-white">81 Provinces</div>
-            <div className="text-[11px] text-white/40 mt-0.5">Last sync: 2 min ago</div>
+            <div className="text-[10px] text-white/40 uppercase tracking-widest mb-2">
+              Data Coverage
+            </div>
+            <div className="text-sm font-bold text-white">Turkey</div>
+            <div className="text-[11px] text-white/40 mt-0.5">ERA5 · v1_baseline</div>
             <div className="mt-2 h-1 bg-white/10 rounded-full overflow-hidden">
               <div className="h-full w-[82%] bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full" />
             </div>
@@ -92,3 +105,6 @@ export default function Sidebar() {
     </aside>
   );
 }
+
+// default export for backward compat
+export default Sidebar;

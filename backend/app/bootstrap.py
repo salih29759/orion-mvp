@@ -132,6 +132,27 @@ def ensure_ops_schema(db: Session) -> None:
         "CREATE INDEX IF NOT EXISTS ix_climatology_thresholds_version ON climatology_thresholds(climatology_version)",
         "CREATE INDEX IF NOT EXISTS ix_climatology_thresholds_month ON climatology_thresholds(month)",
         """
+        CREATE TABLE IF NOT EXISTS climatology_thresholds_doy (
+            id SERIAL PRIMARY KEY,
+            climatology_version VARCHAR(128) NOT NULL,
+            cell_lat DOUBLE PRECISION NOT NULL,
+            cell_lng DOUBLE PRECISION NOT NULL,
+            doy INTEGER NOT NULL,
+            temp_max_p95 DOUBLE PRECISION NULL,
+            wind_max_p95 DOUBLE PRECISION NULL,
+            precip_1d_p95 DOUBLE PRECISION NULL,
+            precip_1d_p99 DOUBLE PRECISION NULL,
+            precip_7d_p95 DOUBLE PRECISION NULL,
+            precip_7d_p99 DOUBLE PRECISION NULL,
+            precip_30d_p10 DOUBLE PRECISION NULL,
+            soil_moisture_p10 DOUBLE PRECISION NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_clim_version_cell_doy UNIQUE (climatology_version, cell_lat, cell_lng, doy)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_climatology_thresholds_doy_version ON climatology_thresholds_doy(climatology_version)",
+        "CREATE INDEX IF NOT EXISTS ix_climatology_thresholds_doy_doy ON climatology_thresholds_doy(doy)",
+        """
         CREATE TABLE IF NOT EXISTS asset_risk_scores (
             id SERIAL PRIMARY KEY,
             asset_id VARCHAR(128) NOT NULL,
@@ -167,6 +188,69 @@ def ensure_ops_schema(db: Session) -> None:
         )
         """,
         "CREATE INDEX IF NOT EXISTS ix_portfolio_assets_portfolio_id ON portfolio_assets(portfolio_id)",
+        """
+        CREATE TABLE IF NOT EXISTS firms_ingest_jobs (
+            job_id VARCHAR(64) PRIMARY KEY,
+            request_signature VARCHAR(64) NOT NULL UNIQUE,
+            status VARCHAR(16) NOT NULL,
+            source VARCHAR(64) NOT NULL,
+            bbox_csv VARCHAR(128) NOT NULL,
+            start_date DATE NOT NULL,
+            end_date DATE NOT NULL,
+            rows_fetched INTEGER NOT NULL DEFAULT 0,
+            rows_inserted INTEGER NOT NULL DEFAULT 0,
+            raw_gcs_uri TEXT NULL,
+            duration_seconds DOUBLE PRECISION NULL,
+            error TEXT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at TIMESTAMPTZ NULL,
+            finished_at TIMESTAMPTZ NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_firms_ingest_jobs_status ON firms_ingest_jobs(status)",
+        "CREATE INDEX IF NOT EXISTS ix_firms_ingest_jobs_source ON firms_ingest_jobs(source)",
+        """
+        CREATE TABLE IF NOT EXISTS fires (
+            id BIGSERIAL PRIMARY KEY,
+            time_utc TIMESTAMPTZ NOT NULL,
+            lat DOUBLE PRECISION NOT NULL,
+            lon DOUBLE PRECISION NOT NULL,
+            lat_round DOUBLE PRECISION NOT NULL,
+            lon_round DOUBLE PRECISION NOT NULL,
+            geom_wkt TEXT NULL,
+            frp DOUBLE PRECISION NULL,
+            confidence VARCHAR(32) NULL,
+            satellite VARCHAR(32) NULL,
+            source VARCHAR(64) NOT NULL,
+            raw_job_id VARCHAR(64) NULL REFERENCES firms_ingest_jobs(job_id) ON DELETE SET NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_fire_event_key UNIQUE (source, time_utc, lat_round, lon_round)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_fires_time_utc ON fires(time_utc)",
+        "CREATE INDEX IF NOT EXISTS ix_fires_lat ON fires(lat)",
+        "CREATE INDEX IF NOT EXISTS ix_fires_lon ON fires(lon)",
+        "CREATE INDEX IF NOT EXISTS ix_fires_source ON fires(source)",
+        "CREATE INDEX IF NOT EXISTS ix_fires_raw_job_id ON fires(raw_job_id)",
+        """
+        CREATE TABLE IF NOT EXISTS notifications (
+            id VARCHAR(64) PRIMARY KEY,
+            customer_id VARCHAR(128) NULL,
+            portfolio_id VARCHAR(128) NULL,
+            asset_id VARCHAR(128) NOT NULL,
+            type VARCHAR(64) NOT NULL,
+            severity VARCHAR(16) NOT NULL,
+            payload_json TEXT NOT NULL,
+            dedup_key VARCHAR(255) NOT NULL UNIQUE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            acknowledged_at TIMESTAMPTZ NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_notifications_customer_id ON notifications(customer_id)",
+        "CREATE INDEX IF NOT EXISTS ix_notifications_portfolio_id ON notifications(portfolio_id)",
+        "CREATE INDEX IF NOT EXISTS ix_notifications_asset_id ON notifications(asset_id)",
+        "CREATE INDEX IF NOT EXISTS ix_notifications_type ON notifications(type)",
+        "CREATE INDEX IF NOT EXISTS ix_notifications_severity ON notifications(severity)",
     ]
     for stmt in stmts:
         db.execute(text(stmt))

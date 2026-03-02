@@ -36,7 +36,9 @@ async def health():
         )
 
     return {
-        "status": "healthy",
+        "status": "ok",
+        "version": settings.model_version,
+        # backward-compatible fields
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "model_version": settings.model_version,
         "confidence_score": settings.confidence_score,

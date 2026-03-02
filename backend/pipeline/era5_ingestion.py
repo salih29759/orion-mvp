@@ -780,7 +780,7 @@ def get_backfill_status(backfill_id: str, include_items: bool = True) -> dict | 
         bf.months_failed = len(failed)
         bf.failed_months_json = json.dumps(failed)
         if all_done:
-            bf.status = "finished"
+            bf.status = "success"
             bf.finished_at = datetime.now(timezone.utc)
         db.commit()
         child_jobs = None

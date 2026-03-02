@@ -23,6 +23,7 @@ from pipeline.era5_ingestion import (
     submit_era5_job,
     validate_era5_runtime,
 )
+from pipeline.firms_ingestion import get_firms_job
 from pipeline.open_meteo_series import fetch_open_meteo_daily, fetch_open_meteo_today
 
 router = APIRouter()
@@ -103,11 +104,60 @@ async def job_status(job_id: str, _: str = Depends(verify_token)):
     # Backfill status (with child jobs)
     bf = get_backfill_status(job_id, include_items=True)
     if bf:
-        return bf
+        status = "success" if bf.get("status") == "finished" else bf.get("status")
+        children = [c["job_id"] for c in (bf.get("child_jobs") or []) if c.get("job_id")]
+        return {
+            "job_id": bf["backfill_id"],
+            "status": status,
+            "type": "era5_backfill",
+            "created_at": bf.get("created_at"),
+            "updated_at": bf.get("finished_at"),
+            "progress": {
+                "months_total": bf.get("months_total", 0),
+                "months_success": bf.get("months_success", 0),
+                "months_failed": bf.get("months_failed", 0),
+                "failed_months": bf.get("failed_months", []),
+            },
+            "children": children,
+            # backward-compatible fields
+            **bf,
+        }
+    firms = get_firms_job(job_id)
+    if firms:
+        return {
+            "job_id": firms.job_id,
+            "status": firms.status,
+            "type": "firms_ingest",
+            "created_at": firms.created_at,
+            "updated_at": firms.finished_at or firms.started_at,
+            "progress": {
+                "rows_fetched": firms.rows_fetched,
+                "rows_inserted": firms.rows_inserted,
+                "raw_gcs_uri": firms.raw_gcs_uri,
+            },
+            "children": [],
+            "error": firms.error,
+            "source": firms.source,
+            "start_date": firms.start_date,
+            "end_date": firms.end_date,
+        }
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
-    return _to_job_response(job)
+    payload = _to_job_response(job).model_dump()
+    payload.update(
+        {
+            "type": "era5_ingest",
+            "updated_at": payload.get("finished_at") or payload.get("started_at"),
+            "progress": {
+                "rows_written": payload.get("rows_written", 0),
+                "bytes_downloaded": payload.get("bytes_downloaded", 0),
+                "dq_status": payload.get("dq_status"),
+            },
+            "children": [],
+        }
+    )
+    return payload
 
 
 @router.get(

@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.orm import ClimatologyThresholdORM
+from app.orm import ClimatologyThresholdDoyORM, ClimatologyThresholdORM
 from pipeline import risk_scoring
 
 
@@ -56,9 +56,40 @@ def test_threshold_retrieval_with_nearest_fallback(monkeypatch):
     assert got["soil_moisture_p10"] == 0.15
 
 
+def test_threshold_retrieval_prefers_doy(monkeypatch):
+    engine = create_engine("sqlite:///:memory:", future=True)
+    TestSession = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr(risk_scoring, "SessionLocal", TestSession)
+
+    with TestSession() as db:
+        db.add(
+            ClimatologyThresholdDoyORM(
+                climatology_version="vdoy",
+                cell_lat=41.0,
+                cell_lng=29.0,
+                doy=5,
+                temp_max_p95=11.0,
+                wind_max_p95=12.0,
+                precip_1d_p95=13.0,
+                precip_1d_p99=14.0,
+                precip_7d_p95=15.0,
+                precip_7d_p99=16.0,
+                precip_30d_p10=17.0,
+                soil_moisture_p10=0.18,
+            )
+        )
+        db.commit()
+
+    got = risk_scoring.get_thresholds(41.0, 29.0, date(2024, 1, 5), "vdoy")
+    assert got is not None
+    assert got["temp_max_p95"] == 11.0
+    assert got["soil_moisture_p10"] == 0.18
+
+
 def test_score_direction_higher_is_worse():
     assert risk_scoring.score_heat(2, 0.5) < risk_scoring.score_heat(12, 3.0)
     assert risk_scoring.score_rain(20, 10, 50, 80, 40) < risk_scoring.score_rain(120, 70, 50, 80, 40)
     assert risk_scoring.score_wind(2, 8, 10) < risk_scoring.score_wind(12, 18, 10)
     assert risk_scoring.score_drought(60, 20, 0.4, 0.15) < risk_scoring.score_drought(5, 20, 0.05, 0.15)
-
+    assert risk_scoring.score_wildfire(30.0, 0, 0, 0.0) < risk_scoring.score_wildfire(3.0, 1, 3, 120.0)

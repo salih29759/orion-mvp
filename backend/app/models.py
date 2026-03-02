@@ -2,7 +2,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 from app.config import settings
 from app.era5_presets import variables_for_profile
@@ -267,9 +267,18 @@ class Era5BackfillStatusResponse(BaseModel):
 
 
 class AssetPoint(BaseModel):
-    id: str
+    asset_id: str = Field(
+        validation_alias=AliasChoices("asset_id", "id"),
+        serialization_alias="asset_id",
+    )
     lat: float
     lon: float
+    name: str | None = None
+
+    @property
+    def id(self) -> str:
+        # Backward-compatible accessor used by existing code.
+        return self.asset_id
 
 
 class Era5BatchFeatureRequest(BaseModel):
@@ -286,21 +295,28 @@ class PortfolioExportRequest(BaseModel):
     format: str = "csv"
     include_drivers: bool = True
     climatology_version: str = "v1_baseline_2015_2024"
+    include_wildfire: bool = False
     assets: list[AssetPoint] = Field(default_factory=list)
 
 
 class PortfolioExportResponse(BaseModel):
     status: str
     export_id: str
+    path: str | None = None
+    download_url: str | None = None
     row_count: int
     export_url: str | None = None
 
 
 class ClimatologyBuildRequest(BaseModel):
-    climatology_version: str = "v1_baseline_2015_2024"
+    climatology_version: str = Field(
+        default="v1_baseline_2015_2024",
+        validation_alias=AliasChoices("version", "climatology_version"),
+        serialization_alias="version",
+    )
     baseline_start: date
     baseline_end: date
-    level: Literal["month"] = "month"
+    level: Literal["month", "doy"] = "month"
 
     @model_validator(mode="after")
     def validate_dates(self):
@@ -313,6 +329,7 @@ class ClimatologyBuildResponse(BaseModel):
     status: str
     run_id: str
     climatology_version: str
+    version: str | None = None
     row_count: int
     thresholds_gcs_uri: str | None = None
 
@@ -322,6 +339,9 @@ class ScoreBatchRequest(BaseModel):
     start_date: date
     end_date: date
     climatology_version: str = "v1_baseline_2015_2024"
+    include_perils: list[Literal["heat", "rain", "wind", "drought", "wildfire", "all"]] = Field(
+        default_factory=lambda: ["heat", "rain", "wind", "drought"]
+    )
     persist: bool = True
 
 
@@ -338,7 +358,25 @@ class ScoreBatchResponse(BaseModel):
     status: str
     run_id: str
     climatology_version: str
+    results: list[dict[str, Any]] | None = None
     assets: dict[str, list[ScorePoint]]
+
+
+class ScoreBenchmarkRequest(BaseModel):
+    assets_count: int = Field(default=100, ge=1, le=5000)
+    start_date: date
+    end_date: date
+    climatology_version: str = "v1_baseline_2015_2024"
+
+
+class ScoreBenchmarkResponse(BaseModel):
+    status: str
+    run_id: str
+    assets_count: int
+    days: int
+    duration_seconds: float
+    per_asset_ms: float
+    per_asset_day_ms: float
 
 
 class PortfolioRiskSummaryResponse(BaseModel):
@@ -346,6 +384,63 @@ class PortfolioRiskSummaryResponse(BaseModel):
     portfolio_id: str
     start_date: date
     end_date: date
+    period: dict[str, Any] | None = None
+    bands: dict[str, int] | None = None
+    peril_averages: dict[str, float] | None = None
+    top_assets: list[dict[str, Any]] | None = None
+    trend: list[dict[str, Any]] | None = None
     distribution: dict[str, dict[str, int]]
     top_10_assets: list[dict[str, Any]]
     trend_summary: dict[str, Any]
+
+
+class FirmsIngestRequest(BaseModel):
+    source: str = "VIIRS_SNPP_NRT"
+    bbox: dict[str, float] = Field(
+        default_factory=lambda: {"north": 42.0, "west": 26.0, "south": 36.0, "east": 45.0}
+    )
+    start_date: date
+    end_date: date
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.start_date > self.end_date:
+            raise ValueError("start_date must be <= end_date")
+        required_bbox = {"north", "west", "south", "east"}
+        if set(self.bbox.keys()) != required_bbox:
+            raise ValueError("bbox must contain exactly: north, west, south, east")
+        return self
+
+
+class FirmsIngestResponse(BaseModel):
+    status: str
+    request_status: str | None = None
+    job_id: str
+    type: str = "firms_ingest"
+    created_at: datetime
+    deduplicated: bool
+
+
+class WildfireFeaturesResponse(BaseModel):
+    status: str
+    asset_id: str
+    window: str
+    nearest_fire_distance_km: float | None
+    fires_within_10km_count: int
+    max_frp_within_20km: float | None = None
+
+
+class NotificationItem(BaseModel):
+    id: str
+    severity: Literal["low", "medium", "high"]
+    type: str
+    portfolio_id: str | None = None
+    asset_id: str
+    created_at: datetime
+    acknowledged_at: datetime | None = None
+    payload: dict[str, Any]
+
+
+class AckNotificationResponse(BaseModel):
+    id: str
+    acknowledged_at: datetime
