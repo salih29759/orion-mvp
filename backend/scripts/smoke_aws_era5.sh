@@ -28,18 +28,23 @@ echo "[4/6] start small aws backfill (province points)"
 BACKFILL=$(curl -sS -X POST "${BASE_URL}/jobs/aws-era5/backfill" "${auth[@]}" "${json[@]}" -d '{
   "start":"2024-01-01",
   "end":"2024-01-31",
-  "mode":"points",
+  "mode":"streaming",
+  "extraction_mode":"points",
   "points_set":"provinces",
   "bbox":{"north":42,"west":26,"south":36,"east":45},
   "variables":["2m_temperature","total_precipitation","10m_u_component_of_wind","10m_v_component_of_wind","volumetric_soil_water_layer_1"],
   "concurrency":1,
+  "n_workers":4,
   "force":false
 }')
-echo "$BACKFILL" | jq '{job_id,status,type,progress}'
+echo "$BACKFILL" | jq '{job_id,status,type,estimated_hours,progress}'
 JOB_ID=$(echo "$BACKFILL" | jq -r '.job_id')
 
 echo "[5/6] poll parent job once"
 curl -sS "${BASE_URL}/jobs/${JOB_ID}" "${auth[@]}" | jq '{job_id,status,type,progress}'
+
+echo "[5.1/6] latest global aws status snapshot"
+curl -sS "${BASE_URL}/jobs/aws-era5/status" "${auth[@]}" | jq '{total_months,completed,failed,running,percent_done,eta_hours}'
 
 echo "[6/6] sample scored output check"
 curl -sS -X POST "${BASE_URL}/scores/batch" "${auth[@]}" "${json[@]}" -d '{

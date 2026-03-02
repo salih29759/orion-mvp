@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
+from app.config import settings
 from app.era5_presets import CORE_VARIABLES
 from app.errors import ApiError
 from pipeline.aws_era5_catalog import get_catalog_run, get_latest_available, sync_catalog
+from pipeline.aws_era5_parallel import read_progress_json
 from pipeline.era5_ingestion import (
     get_backfill_status,
     get_jobs_metrics,
@@ -54,24 +56,32 @@ def create_aws_backfill_job(
     start: date,
     end: date,
     mode: str,
+    extraction_mode: str,
     points_set: str | None,
     bbox: dict,
     variables: list[str],
     concurrency: int,
+    n_workers: int,
     force: bool,
 ) -> dict:
     start_month = f"{start.year:04d}-{start.month:02d}"
     end_month = f"{end.year:04d}-{end.month:02d}"
+    total_months = (end.year - start.year) * 12 + (end.month - start.month) + 1
+    pending_months = max(total_months, 0)
+    estimated_hours = round((pending_months * 2.0) / max(n_workers, 1), 2)
     backfill_id, _, months_total = submit_backfill(
         start_month=start_month,
         end_month=end_month,
         bbox=(bbox["north"], bbox["west"], bbox["south"], bbox["east"]),
         variables=variables,
-        mode="monthly" if mode in {"points", "bbox"} else mode,
+        mode="monthly",
         dataset="era5-land",
         concurrency=concurrency,
         provider_strategy="aws_first_hybrid",
         force=force,
+        processing_mode=mode,
+        points_set=points_set,
+        extraction_mode=extraction_mode,
     )
     return {
         "job_id": backfill_id,
@@ -79,12 +89,17 @@ def create_aws_backfill_job(
         "type": "aws_era5_backfill",
         "created_at": datetime.now(timezone.utc),
         "updated_at": None,
+        "estimated_hours": estimated_hours,
         "progress": {
             "months_total": months_total,
             "months_success": 0,
             "months_failed": 0,
             "mode": mode,
+            "extraction_mode": extraction_mode,
             "points_set": points_set,
+            "n_workers": n_workers,
+            "percent_done": 0.0,
+            "eta_hours": estimated_hours,
         },
         "children": [],
     }
@@ -109,6 +124,15 @@ def create_aws_catalog_sync_job(*, prefixes: list[str] | None, max_keys_per_pref
 
 def get_aws_catalog_latest() -> dict:
     return get_latest_available(required_variables=CORE_VARIABLES)
+
+
+def get_aws_latest_status() -> dict:
+    if not settings.era5_gcs_bucket:
+        raise ApiError(status_code=503, error_code="CONFIG_ERROR", message="ERA5_GCS_BUCKET is missing")
+    try:
+        return read_progress_json(bucket=settings.era5_gcs_bucket)
+    except Exception as exc:  # noqa: BLE001
+        raise ApiError(status_code=503, error_code="STATUS_UNAVAILABLE", message=str(exc)) from exc
 
 
 def run_aws_monthly_update(*, bbox: dict, variables: list[str], concurrency: int = 2) -> dict:
@@ -160,17 +184,37 @@ def get_job_status_payload(job_id: str) -> dict:
     if bf:
         status = "success" if bf.get("status") == "finished" else bf.get("status")
         provider_strategy = bf.get("provider_strategy")
+        months_total = int(bf.get("months_total", 0) or 0)
+        months_success = int(bf.get("months_success", 0) or 0)
+        months_failed = int(bf.get("months_failed", 0) or 0)
+        percent_done = round(((months_success + months_failed) / months_total) * 100.0, 2) if months_total else 0.0
+        created_at = bf.get("created_at")
+        eta_hours = None
+        if created_at and months_success > 0:
+            if isinstance(created_at, datetime):
+                created_dt = created_at
+            else:
+                created_dt = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+            if created_dt.tzinfo is None:
+                created_dt = created_dt.replace(tzinfo=timezone.utc)
+            elapsed_hours = max((datetime.now(timezone.utc) - created_dt).total_seconds() / 3600.0, 1e-6)
+            rate = months_success / elapsed_hours
+            remaining = max(months_total - months_success - months_failed, 0)
+            eta_hours = round(remaining / rate, 2) if rate > 0 else None
         return {
             "job_id": bf["backfill_id"],
             "status": status,
             "type": "aws_era5_backfill" if provider_strategy == "aws_first_hybrid" else "era5_backfill",
-            "created_at": bf.get("created_at"),
+            "created_at": created_at,
             "updated_at": bf.get("finished_at"),
+            "estimated_hours": eta_hours,
             "progress": {
-                "months_total": bf.get("months_total", 0),
-                "months_success": bf.get("months_success", 0),
-                "months_failed": bf.get("months_failed", 0),
+                "months_total": months_total,
+                "months_success": months_success,
+                "months_failed": months_failed,
                 "failed_months": bf.get("failed_months", []),
+                "percent_done": percent_done,
+                "eta_hours": eta_hours,
             },
             "children": [c["job_id"] for c in (bf.get("child_jobs") or []) if c.get("job_id")],
         }

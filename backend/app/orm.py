@@ -185,6 +185,18 @@ class AwsEra5CatalogRunORM(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class BackfillProgressORM(Base):
+    __tablename__ = "backfill_progress"
+
+    month: Mapped[date] = mapped_column(Date, primary_key=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", index=True)
+    row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    run_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+
+
 class ExportJobORM(Base):
     __tablename__ = "export_jobs"
 

@@ -62,7 +62,8 @@ def test_aws_backfill_endpoint(api_client, monkeypatch):
             "type": "aws_era5_backfill",
             "created_at": "2026-03-02T00:00:00Z",
             "updated_at": None,
-            "progress": {"months_total": 1, "months_success": 0, "months_failed": 0},
+            "estimated_hours": 1.5,
+            "progress": {"months_total": 1, "months_success": 0, "months_failed": 0, "percent_done": 0.0},
             "children": [],
         },
     )
@@ -72,7 +73,8 @@ def test_aws_backfill_endpoint(api_client, monkeypatch):
         json={
             "start": "2024-01-01",
             "end": "2024-01-31",
-            "mode": "points",
+            "mode": "streaming",
+            "extraction_mode": "points",
             "points_set": "assets+provinces",
             "bbox": {"north": 42, "west": 26, "south": 36, "east": 45},
             "variables": [
@@ -83,6 +85,7 @@ def test_aws_backfill_endpoint(api_client, monkeypatch):
                 "volumetric_soil_water_layer_1",
             ],
             "concurrency": 2,
+            "n_workers": 14,
             "force": False,
         },
     )
@@ -90,3 +93,27 @@ def test_aws_backfill_endpoint(api_client, monkeypatch):
     body = res.json()
     assert body["type"] == "aws_era5_backfill"
     assert body["status"] == "queued"
+    assert isinstance(body["estimated_hours"], float)
+
+
+def test_aws_backfill_status_endpoint(api_client, monkeypatch):
+    monkeypatch.setattr(
+        aws_jobs,
+        "get_latest_status",
+        lambda: {
+            "run_id": "awsbf_123",
+            "total_months": 12,
+            "completed": 3,
+            "failed": 1,
+            "running": 2,
+            "percent_done": 33.33,
+            "failed_months": ["1952-03"],
+            "eta_hours": 4.5,
+            "last_updated": "2026-03-02T12:00:00Z",
+        },
+    )
+    res = api_client.get("/jobs/aws-era5/status", headers=_auth_headers())
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total_months"] == 12
+    assert body["failed_months"] == ["1952-03"]

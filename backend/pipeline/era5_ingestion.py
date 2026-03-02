@@ -694,6 +694,9 @@ def submit_backfill(
     concurrency: int = 2,
     provider_strategy: str = "aws_first_hybrid",
     force: bool = False,
+    processing_mode: str = "streaming",
+    points_set: str | None = None,
+    extraction_mode: str = "points",
 ) -> tuple[str, bool, int]:
     req_sig = sha256(
         json.dumps(
@@ -707,6 +710,9 @@ def submit_backfill(
                 "concurrency": concurrency,
                 "provider_strategy": provider_strategy,
                 "force": force,
+                "processing_mode": processing_mode,
+                "points_set": points_set,
+                "extraction_mode": extraction_mode,
             },
             sort_keys=True,
         ).encode("utf-8")
@@ -789,14 +795,17 @@ def submit_backfill(
                     dataset=dataset,
                     out_format="netcdf",
                     provider="aws_nsf_ncar" if provider_selected == "aws" else "cds",
-                    mode=settings.aws_era5_mode_default if provider_selected == "aws" else "bbox",
-                    points_set=settings.aws_era5_points_set_default if provider_selected == "aws" else None,
+                    mode=extraction_mode if provider_selected == "aws" else "bbox",
+                    points_set=(points_set or settings.aws_era5_points_set_default) if provider_selected == "aws" else None,
                     month_label=month_label,
                     source_range_json=json.dumps(
                         {
                             "provider_strategy": provider_strategy,
                             "provider_selected": provider_selected,
                             "reason": decision.reason if decision else "explicit_cds",
+                            "processing_mode": processing_mode,
+                            "extraction_mode": extraction_mode,
+                            "points_set": points_set or settings.aws_era5_points_set_default,
                         }
                     ),
                 )

@@ -10,8 +10,15 @@ requests==2.32.3
 cdsapi==0.7.7
 google-cloud-storage==2.18.2
 boto3==1.35.81
+s3fs==2025.2.0
+fsspec[gcs]==2025.2.0
+gcsfs==2025.2.0
+dask[distributed]==2025.2.0
 xarray==2025.1.2
 netCDF4==1.7.2
+h5netcdf==1.6.1
+scipy==1.15.2
+numpy==2.2.3
 pandas==2.2.3
 pyarrow==18.1.0
 pytest==8.3.4

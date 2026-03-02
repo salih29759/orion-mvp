@@ -42,6 +42,7 @@ class JobStatusResponse(StrictBaseModel):
     created_at: datetime
     updated_at: datetime | None = None
     progress: dict[str, Any] | None = None
+    estimated_hours: float | None = None
     children: list[str] = Field(default_factory=list)
 
 
@@ -88,4 +89,3 @@ class AssetWildfireFeaturesResponse(StrictBaseModel):
     nearest_fire_distance_km: float | None = None
     fires_within_10km_count: int
     max_frp_within_20km: float | None = None
-

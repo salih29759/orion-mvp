@@ -18,7 +18,8 @@ class AwsCatalogSyncRequest(StrictBaseModel):
 class AwsEra5BackfillRequest(StrictBaseModel):
     start: date
     end: date
-    mode: Literal["points", "bbox"] = "points"
+    mode: Literal["streaming", "download", "points", "bbox"] = "streaming"
+    extraction_mode: Literal["points", "bbox"] | None = None
     points_set: str | None = "assets+provinces"
     bbox: dict[str, float] = Field(default_factory=lambda: {"north": 42.0, "west": 26.0, "south": 36.0, "east": 45.0})
     variables: list[str] = Field(
@@ -31,6 +32,7 @@ class AwsEra5BackfillRequest(StrictBaseModel):
         ]
     )
     concurrency: int = Field(default=3, ge=1, le=3)
+    n_workers: int = Field(default=14, ge=1, le=64)
     force: bool = False
 
     @model_validator(mode="after")
@@ -39,9 +41,33 @@ class AwsEra5BackfillRequest(StrictBaseModel):
             raise ValueError("start must be <= end")
         return self
 
+    def resolved_processing_mode(self) -> str:
+        if self.mode in {"streaming", "download"}:
+            return self.mode
+        return "streaming"
+
+    def resolved_extraction_mode(self) -> str:
+        if self.extraction_mode in {"points", "bbox"}:
+            return self.extraction_mode
+        if self.mode in {"points", "bbox"}:
+            return self.mode
+        return "points"
+
 
 class AwsCatalogLatestResponse(StrictBaseModel):
     bucket: str
     region: str
     latest_common_month: str | None = None
     latest_by_variable: dict[str, str | None]
+
+
+class AwsEra5StatusResponse(StrictBaseModel):
+    total_months: int
+    completed: int
+    failed: int
+    running: int
+    percent_done: float
+    failed_months: list[str]
+    eta_hours: float | None = None
+    last_updated: str
+    run_id: str | None = None
