@@ -1,6 +1,6 @@
 """add openmeteo jobs and artifacts tables
 
-Revision ID: 0010_openmeteo_jobs
+Revision ID: 0101_openmeteo_jobs
 Revises: 0009_backfill_progress
 Create Date: 2026-03-02
 """
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0010_openmeteo_jobs"
+revision = "0101_openmeteo_jobs"
 down_revision = "0009_backfill_progress"
 branch_labels = None
 depends_on = None
