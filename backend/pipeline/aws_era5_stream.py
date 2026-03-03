@@ -84,7 +84,9 @@ def open_era5_from_s3(s3_key: str) -> xr.Dataset:
     for engine in ("h5netcdf", "netcdf4", "scipy"):
         file_obj = fs.open(uri, mode="rb")
         try:
-            ds = xr.open_dataset(file_obj, engine=engine, chunks={"time": 24})
+            # Avoid dask-backed chunk graphs in VM backfill workers; they caused heavy lock contention
+            # and very slow/no-progress behavior for point extraction. Read directly from backend.
+            ds = xr.open_dataset(file_obj, engine=engine, chunks=None)
             ds = _normalize_dataset(ds)
             return _slice_turkey(ds)
         except Exception as exc:  # noqa: BLE001
