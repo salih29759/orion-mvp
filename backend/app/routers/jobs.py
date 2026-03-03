@@ -13,7 +13,15 @@ from app.models import (
     Era5IngestResponse,
 )
 from app.schemas.common import BBox, BackfillRequest, JobStatusResponse
-from app.services.job_service import create_backfill_job, create_firms_ingest_job, get_job_status_payload
+from app.schemas.nasa import NasaBackfillRequest, NasaStatusResponse
+from app.services.job_service import (
+    create_backfill_job,
+    create_firms_ingest_job,
+    create_nasa_modis_backfill_job,
+    create_nasa_smap_backfill_job,
+    get_job_status_payload,
+    get_nasa_status_payload,
+)
 from pipeline.era5_ingestion import (
     Era5Request,
     get_era5_features,
@@ -105,7 +113,22 @@ async def firms_ingest(
     )
 
 
-@router.get("/{job_id}", response_model=JobStatusResponse, summary="Get asynchronous ERA5/FIRMS job status")
+@router.post("/nasa/smap/backfill", response_model=JobStatusResponse, status_code=status.HTTP_202_ACCEPTED)
+async def nasa_smap_backfill(body: NasaBackfillRequest, _: str = Depends(verify_token)):
+    return create_nasa_smap_backfill_job(start=body.start, end=body.end)
+
+
+@router.post("/nasa/modis/backfill", response_model=JobStatusResponse, status_code=status.HTTP_202_ACCEPTED)
+async def nasa_modis_backfill(body: NasaBackfillRequest, _: str = Depends(verify_token)):
+    return create_nasa_modis_backfill_job(start=body.start, end=body.end)
+
+
+@router.get("/nasa/status", response_model=NasaStatusResponse)
+async def nasa_status(_: str = Depends(verify_token)):
+    return get_nasa_status_payload()
+
+
+@router.get("/{job_id}", response_model=JobStatusResponse, summary="Get asynchronous ERA5/FIRMS/NASA job status")
 async def job_status(job_id: str, _: str = Depends(verify_token)):
     return get_job_status_payload(job_id)
 
