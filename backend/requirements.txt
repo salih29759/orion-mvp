@@ -8,6 +8,7 @@ alembic==1.14.0
 psycopg[binary]==3.2.3
 requests==2.32.3
 cdsapi==0.7.7
+ecmwf-datastores-client==0.4.0
 google-cloud-storage==2.18.2
 boto3==1.35.81
 s3fs==2025.2.0
