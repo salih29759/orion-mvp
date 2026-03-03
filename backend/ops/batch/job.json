@@ -1,0 +1,52 @@
+{
+  "taskGroups": [
+    {
+      "taskCount": 1,
+      "parallelism": 1,
+      "taskSpec": {
+        "maxRunDuration": "__MAX_RUN_DURATION__",
+        "maxRetryCount": __MAX_RETRY_COUNT__,
+        "computeResource": {
+          "cpuMilli": __CPU_MILLI__,
+          "memoryMib": __MEMORY_MIB__
+        },
+        "runnables": [
+          {
+            "container": {
+              "imageUri": "__BACKFILL_IMAGE__",
+              "entrypoint": "/bin/bash",
+              "commands": [
+                "-lc",
+                "cd /app && python -m pipeline.aws_era5_parallel --start __BACKFILL_START__ --end __BACKFILL_END__ --workers __WORKERS__ --points-set __POINTS_SET__ --mode __PROCESSING_MODE__ __FORCE_FLAG__"
+              ]
+            },
+            "environment": {
+              "variables": {
+                "DATABASE_URL": "__DATABASE_URL__",
+                "ERA5_GCS_BUCKET": "__ERA5_GCS_BUCKET__",
+                "ORION_BACKEND_API_KEY": "__ORION_BACKEND_API_KEY__",
+                "APP_ENV": "batch"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "allocationPolicy": {
+    "instances": [
+      {
+        "policy": {
+          "machineType": "__MACHINE_TYPE__",
+          "provisioningModel": "SPOT"
+        }
+      }
+    ],
+    "serviceAccount": {
+      "email": "__SERVICE_ACCOUNT_EMAIL__"
+    }
+  },
+  "logsPolicy": {
+    "destination": "CLOUD_LOGGING"
+  }
+}
