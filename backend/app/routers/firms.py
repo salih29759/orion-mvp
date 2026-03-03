@@ -4,7 +4,7 @@ from fastapi import APIRouter, Header
 
 from app.config import settings
 from app.errors import ApiError
-from app.services.job_service import run_firms_daily_update
+from app.services.orchestration_service import enqueue_firms_daily_update
 
 router = APIRouter()
 
@@ -19,5 +19,4 @@ def _verify_cron_secret(x_cron_secret: str | None) -> None:
 @router.post("/cron/firms/daily-update", tags=["FIRMS"])
 async def firms_daily_update(x_cron_secret: str | None = Header(default=None)):
     _verify_cron_secret(x_cron_secret)
-    return run_firms_daily_update()
-
+    return enqueue_firms_daily_update()

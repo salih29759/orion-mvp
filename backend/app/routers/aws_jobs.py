@@ -7,7 +7,8 @@ from app.config import settings
 from app.errors import ApiError
 from app.schemas.aws import AwsCatalogLatestResponse, AwsCatalogSyncRequest, AwsEra5BackfillRequest, AwsEra5StatusResponse
 from app.schemas.common import JobStatusResponse
-from app.services.aws_job_service import create_backfill, create_catalog_sync, get_catalog_latest, get_latest_status, run_monthly_update
+from app.services.aws_job_service import create_backfill, create_catalog_sync, get_catalog_latest, get_latest_status
+from app.services.orchestration_service import enqueue_aws_monthly_update
 
 router = APIRouter()
 
@@ -52,14 +53,4 @@ async def aws_monthly_update(
     if x_cron_secret != settings.cron_secret:
         raise ApiError(status_code=401, error_code="UNAUTHORIZED", message="Invalid cron secret")
 
-    return run_monthly_update(
-        bbox={"north": 42.0, "west": 26.0, "south": 36.0, "east": 45.0},
-        variables=[
-            "2m_temperature",
-            "total_precipitation",
-            "10m_u_component_of_wind",
-            "10m_v_component_of_wind",
-            "volumetric_soil_water_layer_1",
-        ],
-        concurrency=2,
-    )
+    return enqueue_aws_monthly_update()

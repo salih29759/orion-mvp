@@ -391,7 +391,7 @@ def start_firms_background_job(job_id: str) -> None:
     t.start()
 
 
-def submit_firms_ingest(req: FirmsRequest) -> tuple[str, bool]:
+def submit_firms_ingest(req: FirmsRequest, *, start_async: bool = True) -> tuple[str, bool]:
     signature = sha256(
         json.dumps(
             {
@@ -408,7 +408,21 @@ def submit_firms_ingest(req: FirmsRequest) -> tuple[str, bool]:
             select(FirmsIngestJobORM).where(FirmsIngestJobORM.request_signature == signature).limit(1)
         ).scalar_one_or_none()
         if existing:
-            return existing.job_id, True
+            if existing.status in {"queued", "running", "success"}:
+                return existing.job_id, True
+            existing.status = "queued"
+            existing.rows_fetched = 0
+            existing.rows_inserted = 0
+            existing.raw_gcs_uri = None
+            existing.duration_seconds = None
+            existing.error = None
+            existing.started_at = None
+            existing.finished_at = None
+            db.commit()
+            job_id = existing.job_id
+            if start_async:
+                start_firms_background_job(job_id)
+            return job_id, False
         job_id = str(uuid4())
         db.add(
             FirmsIngestJobORM(
@@ -424,7 +438,8 @@ def submit_firms_ingest(req: FirmsRequest) -> tuple[str, bool]:
             )
         )
         db.commit()
-    start_firms_background_job(job_id)
+    if start_async:
+        start_firms_background_job(job_id)
     return job_id, False
 
 

@@ -13,7 +13,9 @@ from app.models import (
     Era5IngestResponse,
 )
 from app.schemas.common import BBox, BackfillRequest, JobStatusResponse
+from app.schemas.orchestration import EnqueueRequest, EnqueueResponse
 from app.services.job_service import create_backfill_job, create_firms_ingest_job, get_job_status_payload
+from app.services.orchestration_service import enqueue_jobs
 from pipeline.era5_ingestion import (
     Era5Request,
     get_era5_features,
@@ -103,6 +105,11 @@ async def firms_ingest(
         start_date=start_date,
         end_date=end_date,
     )
+
+
+@router.post("/enqueue", response_model=EnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
+async def jobs_enqueue(body: EnqueueRequest, _: str = Depends(verify_token)):
+    return enqueue_jobs(body)
 
 
 @router.get("/{job_id}", response_model=JobStatusResponse, summary="Get asynchronous ERA5/FIRMS job status")

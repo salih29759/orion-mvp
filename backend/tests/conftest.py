@@ -38,7 +38,10 @@ if "google.cloud" not in sys.modules:
     auth = types.ModuleType("google.auth")
     auth_transport = types.ModuleType("google.auth.transport")
     auth_transport_requests = types.ModuleType("google.auth.transport.requests")
+    oauth2 = types.ModuleType("google.oauth2")
+    oauth2_id_token = types.ModuleType("google.oauth2.id_token")
     cloud = types.ModuleType("google.cloud")
+    pubsub_v1 = types.ModuleType("google.cloud.pubsub_v1")
     storage = types.ModuleType("google.cloud.storage")
 
     class _DummyBlob:
@@ -62,6 +65,17 @@ if "google.cloud" not in sys.modules:
         def bucket(self, *args, **kwargs):
             return _DummyBucket()
 
+    class _DummyFuture:
+        def result(self):
+            return "message-id"
+
+    class _DummyPublisherClient:
+        def topic_path(self, project_id, topic):
+            return f"projects/{project_id}/topics/{topic}"
+
+        def publish(self, *args, **kwargs):
+            return _DummyFuture()
+
     class _DummyRequest:  # noqa: D401
         pass
 
@@ -75,19 +89,34 @@ if "google.cloud" not in sys.modules:
     def _dummy_google_auth_default(*args, **kwargs):
         return _DummyCreds(), None
 
+    def _dummy_verify_oauth2_token(*args, **kwargs):
+        return {
+            "aud": kwargs.get("audience"),
+            "iss": "https://accounts.google.com",
+            "email": "pubsub-push@example.iam.gserviceaccount.com",
+        }
+
     auth.default = _dummy_google_auth_default
     auth_transport_requests.Request = _DummyRequest
     auth.transport = auth_transport
     auth_transport.requests = auth_transport_requests
+    oauth2_id_token.verify_oauth2_token = _dummy_verify_oauth2_token
+    oauth2.id_token = oauth2_id_token
+    pubsub_v1.PublisherClient = _DummyPublisherClient
     storage.Client = _DummyStorageClient
+    cloud.pubsub_v1 = pubsub_v1
     cloud.storage = storage
     google.auth = auth
+    google.oauth2 = oauth2
     google.cloud = cloud
     sys.modules["google"] = google
     sys.modules["google.auth"] = auth
     sys.modules["google.auth.transport"] = auth_transport
     sys.modules["google.auth.transport.requests"] = auth_transport_requests
+    sys.modules["google.oauth2"] = oauth2
+    sys.modules["google.oauth2.id_token"] = oauth2_id_token
     sys.modules["google.cloud"] = cloud
+    sys.modules["google.cloud.pubsub_v1"] = pubsub_v1
     sys.modules["google.cloud.storage"] = storage
 
 
@@ -140,7 +169,7 @@ def api_client(monkeypatch, tmp_path):
     from app import database as app_database
     from main import app
     from app.routers import era5_ops
-    from app.services import export_service, portfolio_service
+    from app.services import export_service, orchestration_service, portfolio_service
     from pipeline import firms_ingestion, risk_scoring
 
     db_path = tmp_path / "contract_test.db"
@@ -158,6 +187,7 @@ def api_client(monkeypatch, tmp_path):
     monkeypatch.setattr(era5_ops, "SessionLocal", TestSession)
     monkeypatch.setattr(risk_scoring, "SessionLocal", TestSession)
     monkeypatch.setattr(firms_ingestion, "SessionLocal", TestSession)
+    monkeypatch.setattr(orchestration_service, "SessionLocal", TestSession)
 
     _seed_contract_fixture(TestSession)
 

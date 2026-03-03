@@ -350,6 +350,59 @@ Check latest run:
 
 `GET /internal/pipeline/status` with same `x-cron-secret` header.
 
+## GCP Pub/Sub orchestration (OIDC push worker)
+
+Orchestration endpoints:
+
+- `POST /jobs/enqueue` (Bearer auth)
+- `POST /cron/aws-era5/monthly-update` (cron secret auth, publish-only)
+- `POST /cron/firms/daily-update` (cron secret auth, publish-only)
+- `POST /internal/pubsub/worker` (Pub/Sub push target, OIDC only)
+
+Create topic:
+
+```bash
+gcloud pubsub topics create orion-jobs
+```
+
+Create push subscription with OIDC:
+
+```bash
+gcloud pubsub subscriptions create orion-jobs-worker \
+  --topic orion-jobs \
+  --push-endpoint="$CLOUD_RUN_URL/internal/pubsub/worker" \
+  --push-auth-service-account="$PUBSUB_PUSH_SA_EMAIL" \
+  --push-auth-token-audience="$PUBSUB_OIDC_AUDIENCE"
+```
+
+Lock Cloud Run invoker to push service account only:
+
+```bash
+gcloud run services add-iam-policy-binding orion-api \
+  --region europe-west1 \
+  --project orion-labs-mvp \
+  --member="serviceAccount:$PUBSUB_PUSH_SA_EMAIL" \
+  --role="roles/run.invoker"
+```
+
+Example scheduler jobs:
+
+```bash
+gcloud scheduler jobs create http orion-aws-era5-monthly \
+  --location=europe-west1 \
+  --schedule="0 3 1 * *" \
+  --uri="$CLOUD_RUN_URL/cron/aws-era5/monthly-update" \
+  --http-method=POST \
+  --headers="x-cron-secret=$CRON_SECRET"
+
+gcloud scheduler jobs create http orion-firms-daily \
+  --location=europe-west1 \
+  --schedule="15 2 * * *" \
+  --uri="$CLOUD_RUN_URL/cron/firms/daily-update" \
+  --http-method=POST \
+  --headers="x-cron-secret=$CRON_SECRET"
+```
+
 ## Required env vars in production
 
 - `DATABASE_URL`
@@ -372,6 +425,11 @@ Check latest run:
 - `CDS_AREA_NORTH/WEST/SOUTH/EAST` (optional bounding box for test request)
 - `ERA5_GCS_BUCKET` (required for ERA5 ingest jobs)
 - `ERA5_MAX_CONCURRENT_JOBS` (optional, default `1`)
+- `PUBSUB_PROJECT_ID` (required for Pub/Sub publish)
+- `PUBSUB_TOPIC` (optional, default `orion-jobs`)
+- `PUBSUB_SUBSCRIPTION` (optional, default `orion-jobs-worker`)
+- `PUBSUB_PUSH_SA_EMAIL` (required for worker OIDC validation)
+- `PUBSUB_OIDC_AUDIENCE` (required for worker OIDC validation)
 
 ## Secret Manager setup (recommended)
 

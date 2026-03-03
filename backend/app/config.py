@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     aws_era5_max_concurrent_downloads: int = 3
     aws_era5_mode_default: str = "points"
     aws_era5_points_set_default: str = "assets+provinces"
+    pubsub_project_id: str | None = None
+    pubsub_topic: str = "orion-jobs"
+    pubsub_subscription: str = "orion-jobs-worker"
+    pubsub_push_sa_email: str | None = None
+    pubsub_oidc_audience: str | None = None
     app_env: str = "development"
 
 
