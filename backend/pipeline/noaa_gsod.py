@@ -367,6 +367,9 @@ def _to_feature_rows(
         wind_mean_ms = _knots_to_ms(_clean_number(rec.get("WDSP"), missing_sentinel=999.9))
         wind_gust_ms = _knots_to_ms(_clean_number(rec.get("GUST"), missing_sentinel=999.9))
 
+        # Thresholds agreed for Turkey station-day flags:
+        # heat >= 40C, frost <= 0C, heavy rain >= 50 mm, strong wind gust >= 20 m/s.
+        # If gust is missing, use mean wind >= 15 m/s as proxy for strong wind.
         heat_extreme = (temp_max_c is not None) and (temp_max_c >= 40.0)
         frost_event = (temp_min_c is not None) and (temp_min_c <= 0.0)
         heavy_rain = (precip_mm is not None) and (precip_mm >= 50.0)
