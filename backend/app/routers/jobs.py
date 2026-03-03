@@ -13,7 +13,14 @@ from app.models import (
     Era5IngestResponse,
 )
 from app.schemas.common import BBox, BackfillRequest, JobStatusResponse
-from app.services.job_service import create_backfill_job, create_firms_ingest_job, get_job_status_payload
+from app.schemas.glofas import GlofasBackfillRequest, GlofasStatusResponse
+from app.services.job_service import (
+    create_backfill_job,
+    create_firms_ingest_job,
+    create_glofas_backfill_job,
+    get_glofas_status_payload,
+    get_job_status_payload,
+)
 from pipeline.era5_ingestion import (
     Era5Request,
     get_era5_features,
@@ -103,6 +110,20 @@ async def firms_ingest(
         start_date=start_date,
         end_date=end_date,
     )
+
+
+@router.post("/glofas/backfill", response_model=JobStatusResponse, status_code=status.HTTP_202_ACCEPTED)
+async def glofas_backfill(body: GlofasBackfillRequest, _: str = Depends(verify_token)):
+    return create_glofas_backfill_job(
+        start=body.start,
+        end=body.end,
+        concurrency=body.concurrency,
+    )
+
+
+@router.get("/glofas/status", response_model=GlofasStatusResponse)
+async def glofas_status(_: str = Depends(verify_token)):
+    return get_glofas_status_payload()
 
 
 @router.get("/{job_id}", response_model=JobStatusResponse, summary="Get asynchronous ERA5/FIRMS job status")

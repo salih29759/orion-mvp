@@ -21,6 +21,7 @@ from pipeline.firms_ingestion import (
     run_daily_firms_update,
     submit_firms_ingest,
 )
+from pipeline.glofas_pipeline import get_latest_glofas_status, submit_glofas_backfill, validate_glofas_runtime
 from pipeline.risk_scoring import build_climatology
 
 
@@ -163,6 +164,36 @@ def run_aws_monthly_update(*, bbox: dict, variables: list[str], concurrency: int
         "months_total": months_total,
         "latest_common_month": latest_month,
     }
+
+
+def create_glofas_backfill_job(*, start: date, end: date, concurrency: int) -> dict:
+    missing = validate_glofas_runtime()
+    if missing:
+        raise ApiError(status_code=503, error_code="CONFIG_ERROR", message=f"Missing env vars: {', '.join(missing)}")
+    if start > end:
+        raise ApiError(status_code=422, error_code="VALIDATION_ERROR", message="start must be <= end")
+
+    try:
+        job_id, _deduped, months_total = submit_glofas_backfill(start=start, end=end, concurrency=concurrency)
+    except RuntimeError as exc:
+        raise ApiError(status_code=422, error_code="VALIDATION_ERROR", message=str(exc)) from exc
+
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "type": "glofas_backfill",
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": None,
+        "progress": {"months_total": months_total, "months_success": 0, "months_failed": 0},
+        "children": [],
+    }
+
+
+def get_glofas_status_payload() -> dict:
+    payload = get_latest_glofas_status()
+    if not payload:
+        raise ApiError(status_code=404, error_code="NOT_FOUND", message="No GloFAS run found")
+    return payload
 
 
 def get_job_status_payload(job_id: str) -> dict:

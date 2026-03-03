@@ -15,6 +15,8 @@ fsspec[gcs]==2025.2.0
 gcsfs==2025.2.0
 dask[distributed]==2025.2.0
 xarray==2025.1.2
+cfgrib==0.9.14.1
+eccodes==2.41.0
 netCDF4==1.7.2
 h5netcdf==1.6.1
 scipy==1.15.2
