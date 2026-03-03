@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+import json
 
 from app.config import settings
 from app.era5_presets import CORE_VARIABLES
@@ -20,6 +21,12 @@ from pipeline.firms_ingestion import (
     get_firms_job,
     run_daily_firms_update,
     submit_firms_ingest,
+)
+from pipeline.openmeteo_pipeline import (
+    get_openmeteo_job,
+    submit_openmeteo_backfill,
+    submit_openmeteo_daily,
+    submit_openmeteo_forecast,
 )
 from pipeline.risk_scoring import build_climatology
 
@@ -236,6 +243,24 @@ def get_job_status_payload(job_id: str) -> dict:
             "children": [],
         }
 
+    openmeteo = get_openmeteo_job(job_id)
+    if openmeteo:
+        progress: dict[str, object] = {}
+        if openmeteo.progress_json:
+            try:
+                progress = json.loads(openmeteo.progress_json)
+            except Exception:  # noqa: BLE001
+                progress = {"raw_progress_json": openmeteo.progress_json}
+        return {
+            "job_id": openmeteo.job_id,
+            "status": openmeteo.status,
+            "type": openmeteo.job_type,
+            "created_at": openmeteo.created_at,
+            "updated_at": openmeteo.finished_at or openmeteo.started_at,
+            "progress": progress,
+            "children": [],
+        }
+
     job = get_job(job_id)
     if not job:
         raise ApiError(status_code=404, error_code="NOT_FOUND", message=f"Job '{job_id}' not found")
@@ -285,6 +310,52 @@ def create_firms_ingest_job(*, source: str, bbox: dict, start_date, end_date) ->
         "updated_at": None,
         "progress": {"rows_fetched": 0, "rows_inserted": 0},
         "children": [],
+    }
+
+
+def create_openmeteo_backfill_job(*, start: date, end: date, concurrency: int) -> dict:
+    job_id, dedup = submit_openmeteo_backfill(start_date=start, end_date=end, concurrency=concurrency)
+    now = datetime.now(timezone.utc)
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "type": "openmeteo_backfill",
+        "created_at": now,
+        "updated_at": None,
+        "progress": {
+            "years_total": max((end.year - start.year) + 1, 0),
+            "years_success": 0,
+            "years_failed": 0,
+            "deduplicated": dedup,
+        },
+        "children": [],
+    }
+
+
+def create_openmeteo_forecast_job(*, forecast_days: int) -> dict:
+    job_id, dedup = submit_openmeteo_forecast(forecast_days=forecast_days)
+    now = datetime.now(timezone.utc)
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "type": "openmeteo_forecast",
+        "created_at": now,
+        "updated_at": None,
+        "progress": {
+            "forecast_days": forecast_days,
+            "deduplicated": dedup,
+        },
+        "children": [],
+    }
+
+
+def run_openmeteo_daily_update() -> dict:
+    job_id, dedup, target_date = submit_openmeteo_daily()
+    return {
+        "status": "accepted",
+        "job_id": job_id,
+        "deduplicated": dedup,
+        "target_date": target_date.isoformat(),
     }
 
 

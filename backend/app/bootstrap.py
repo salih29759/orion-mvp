@@ -265,6 +265,46 @@ def ensure_ops_schema(db: Session) -> None:
         "CREATE INDEX IF NOT EXISTS ix_notifications_type ON notifications(type)",
         "CREATE INDEX IF NOT EXISTS ix_notifications_severity ON notifications(severity)",
         """
+        CREATE TABLE IF NOT EXISTS openmeteo_jobs (
+            job_id VARCHAR(64) PRIMARY KEY,
+            request_signature VARCHAR(64) NOT NULL,
+            job_type VARCHAR(32) NOT NULL,
+            status VARCHAR(16) NOT NULL DEFAULT 'queued',
+            start_date DATE NOT NULL,
+            end_date DATE NOT NULL,
+            rows_written INTEGER NOT NULL DEFAULT 0,
+            files_written INTEGER NOT NULL DEFAULT 0,
+            run_id VARCHAR(64) NOT NULL,
+            progress_json TEXT NULL,
+            error TEXT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at TIMESTAMPTZ NULL,
+            finished_at TIMESTAMPTZ NULL,
+            duration_seconds DOUBLE PRECISION NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_openmeteo_jobs_request_signature ON openmeteo_jobs(request_signature)",
+        "CREATE INDEX IF NOT EXISTS ix_openmeteo_jobs_job_type ON openmeteo_jobs(job_type)",
+        "CREATE INDEX IF NOT EXISTS ix_openmeteo_jobs_status ON openmeteo_jobs(status)",
+        "CREATE INDEX IF NOT EXISTS ix_openmeteo_jobs_run_id ON openmeteo_jobs(run_id)",
+        """
+        CREATE TABLE IF NOT EXISTS openmeteo_artifacts (
+            id SERIAL PRIMARY KEY,
+            job_id VARCHAR(64) NOT NULL REFERENCES openmeteo_jobs(job_id) ON DELETE CASCADE,
+            artifact_type VARCHAR(32) NOT NULL,
+            gcs_uri TEXT NOT NULL,
+            start_date DATE NOT NULL,
+            end_date DATE NOT NULL,
+            row_count INTEGER NOT NULL DEFAULT 0,
+            checksum_sha256 VARCHAR(64) NOT NULL,
+            byte_size BIGINT NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_openmeteo_artifacts_job_id ON openmeteo_artifacts(job_id)",
+        "CREATE INDEX IF NOT EXISTS ix_openmeteo_artifacts_artifact_type ON openmeteo_artifacts(artifact_type)",
+        "CREATE INDEX IF NOT EXISTS ix_openmeteo_artifacts_checksum_sha256 ON openmeteo_artifacts(checksum_sha256)",
+        """
         CREATE TABLE IF NOT EXISTS aws_era5_objects (
             id SERIAL PRIMARY KEY,
             bucket VARCHAR(128) NOT NULL,

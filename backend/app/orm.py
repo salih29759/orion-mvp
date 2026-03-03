@@ -337,6 +337,46 @@ class FirmsIngestJobORM(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class OpenMeteoJobORM(Base):
+    __tablename__ = "openmeteo_jobs"
+
+    job_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    request_signature: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    job_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True, default="queued")
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    rows_written: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    files_written: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    run_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    progress_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class OpenMeteoArtifactORM(Base):
+    __tablename__ = "openmeteo_artifacts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("openmeteo_jobs.job_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    artifact_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    gcs_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class FireEventORM(Base):
     __tablename__ = "fires"
     __table_args__ = (
