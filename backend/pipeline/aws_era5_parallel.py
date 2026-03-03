@@ -195,7 +195,19 @@ def run_parallel_backfill(
 
     variables = variables or DEFAULT_VARIABLES
     months = list(pd.date_range(start_date, end_date, freq="MS"))
-    pending = [m for m in months if force or not is_month_completed(m)]
+    month_dates = {_month_start(m) for m in months}
+    successful_months: set[date] = set()
+    if not force and month_dates:
+        with SessionLocal() as db:
+            successful_months = set(
+                db.execute(
+                    select(BackfillProgressORM.month).where(
+                        BackfillProgressORM.month.in_(month_dates),
+                        BackfillProgressORM.status == "success",
+                    )
+                ).scalars()
+            )
+    pending = [m for m in months if force or _month_start(m) not in successful_months]
 
     progress_started = time.time()
     initial_payload = _build_progress_payload(run_id=run_id, start=start_date, end=end_date, started_at=progress_started)
