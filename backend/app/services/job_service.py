@@ -21,6 +21,12 @@ from pipeline.firms_ingestion import (
     run_daily_firms_update,
     submit_firms_ingest,
 )
+from pipeline.nasa_earthdata import (
+    get_latest_nasa_jobs,
+    get_nasa_job,
+    nasa_job_to_status_payload,
+    submit_nasa_backfill,
+)
 from pipeline.risk_scoring import build_climatology
 
 
@@ -165,6 +171,38 @@ def run_aws_monthly_update(*, bbox: dict, variables: list[str], concurrency: int
     }
 
 
+def create_nasa_smap_backfill_job(*, start: date, end: date) -> dict:
+    try:
+        job_id, _deduped, _months_total = submit_nasa_backfill("smap", start_date=start, end_date=end)
+    except ValueError as exc:
+        raise ApiError(status_code=422, error_code="VALIDATION_ERROR", message=str(exc)) from exc
+    job = get_nasa_job(job_id)
+    if not job:
+        raise ApiError(status_code=500, error_code="INTERNAL_ERROR", message="SMAP backfill job was not persisted")
+    return nasa_job_to_status_payload(job)
+
+
+def create_nasa_modis_backfill_job(*, start: date, end: date) -> dict:
+    try:
+        job_id, _deduped, _months_total = submit_nasa_backfill("modis", start_date=start, end_date=end)
+    except ValueError as exc:
+        raise ApiError(status_code=422, error_code="VALIDATION_ERROR", message=str(exc)) from exc
+    job = get_nasa_job(job_id)
+    if not job:
+        raise ApiError(status_code=500, error_code="INTERNAL_ERROR", message="MODIS backfill job was not persisted")
+    return nasa_job_to_status_payload(job)
+
+
+def get_nasa_status_payload() -> dict:
+    latest = get_latest_nasa_jobs()
+    smap = latest.get("smap")
+    modis = latest.get("modis")
+    return {
+        "smap": nasa_job_to_status_payload(smap) if smap else None,
+        "modis": nasa_job_to_status_payload(modis) if modis else None,
+    }
+
+
 def get_job_status_payload(job_id: str) -> dict:
     catalog_run = get_catalog_run(job_id)
     if catalog_run:
@@ -235,6 +273,10 @@ def get_job_status_payload(job_id: str) -> dict:
             },
             "children": [],
         }
+
+    nasa = get_nasa_job(job_id)
+    if nasa:
+        return nasa_job_to_status_payload(nasa)
 
     job = get_job(job_id)
     if not job:

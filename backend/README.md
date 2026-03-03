@@ -122,6 +122,20 @@ FIRMS ingestion (Path B):
 - `GET /notifications?portfolio_id=...`
 - `POST /notifications/{notification_id}/ack`
 
+NASA Earthdata ingestion (SMAP + MODIS):
+
+- Auth via `~/.netrc`:
+  `machine urs.earthdata.nasa.gov login <USER> password <PASS>`
+- `POST /jobs/nasa/smap/backfill` with body `{ "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" }`
+- `POST /jobs/nasa/modis/backfill` with body `{ "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" }`
+- `GET /jobs/nasa/status`
+- `GET /jobs/{job_id}` also works for NASA job ids.
+
+Outputs:
+
+- SMAP daily features: `gs://$ERA5_GCS_BUCKET/features/daily/smap/year=YYYY/month=MM/part-0.parquet`
+- MODIS monthly features: `gs://$ERA5_GCS_BUCKET/features/monthly/modis_burned/year=YYYY/month=MM/part-0.parquet`
+
 Feature query:
 
 - `GET /features/era5?lat=..&lon=..&start=YYYY-MM-DD&end=YYYY-MM-DD`
