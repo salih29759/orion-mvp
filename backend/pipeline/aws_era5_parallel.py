@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed as futures_as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed as futures_as_completed
 from datetime import date, datetime, timezone
 import json
+import multiprocessing as mp
 import time
 from uuid import uuid4
 
@@ -209,7 +210,7 @@ def run_parallel_backfill(
     results: list[dict] = []
     month_isos = [m.strftime("%Y-%m-01") for m in pending]
 
-    used_thread_fallback = False
+    executor_name = "dask"
     if Client is not None and LocalCluster is not None and dask_as_completed is not None:
         try:
             cluster = LocalCluster(
@@ -241,12 +242,42 @@ def run_parallel_backfill(
                 cluster.close()
         except Exception as exc:  # noqa: BLE001
             # Keep the run alive even if Dask graph serialization fails on this host.
-            print(f"[aws_era5_parallel] dask_failed_fallback_to_threads error={exc}")
-            used_thread_fallback = True
+            print(f"[aws_era5_parallel] dask_failed_fallback_to_process error={exc}")
+            executor_name = "process"
     else:
-        used_thread_fallback = True
+        executor_name = "process"
 
-    if used_thread_fallback:
+    if executor_name == "process":
+        try:
+            try:
+                mp_ctx = mp.get_context("fork")
+            except ValueError:
+                mp_ctx = mp.get_context("spawn")
+            with ProcessPoolExecutor(max_workers=max(1, n_workers), mp_context=mp_ctx) as ex:
+                futures = [
+                    ex.submit(
+                        _process_month_worker,
+                        month_iso,
+                        points_set=points_set,
+                        variables=variables,
+                        run_id=run_id,
+                        processing_mode=processing_mode,
+                    )
+                    for month_iso in month_isos
+                ]
+                for fut in futures_as_completed(futures):
+                    result = fut.result()
+                    results.append(result)
+                    now = time.time()
+                    if now - last_progress_flush >= 600:
+                        payload = _build_progress_payload(run_id=run_id, start=start_date, end=end_date, started_at=progress_started)
+                        write_progress_json(bucket=bucket, payload=payload)
+                        last_progress_flush = now
+        except Exception as exc:  # noqa: BLE001
+            print(f"[aws_era5_parallel] process_failed_fallback_to_threads error={exc}")
+            executor_name = "threads"
+
+    if executor_name == "threads":
         with ThreadPoolExecutor(max_workers=max(1, n_workers)) as ex:
             futures = [
                 ex.submit(
@@ -270,7 +301,7 @@ def run_parallel_backfill(
 
     final_payload = _build_progress_payload(run_id=run_id, start=start_date, end=end_date, started_at=progress_started)
     final_payload["results"] = results
-    final_payload["executor"] = "threads" if used_thread_fallback else "dask"
+    final_payload["executor"] = executor_name
     write_progress_json(bucket=bucket, payload=final_payload)
     return final_payload
 

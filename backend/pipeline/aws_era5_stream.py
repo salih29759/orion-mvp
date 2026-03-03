@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -121,30 +122,47 @@ def extract_points_hourly(ds: xr.Dataset, points: list[dict[str, Any]], variable
     da = ds[var]
     if "time" not in da.coords:
         raise RuntimeError("dataset is missing time coordinate")
+    if not points:
+        return pd.DataFrame(columns=["time", "point_id", "lat", "lng", "variable", "value"])
 
-    rows: list[dict[str, Any]] = []
-    for point in points:
-        sampled = da.sel(latitude=float(point["lat"]), longitude=float(point["lon"]), method="nearest").squeeze(drop=True)
-        times = pd.to_datetime(sampled["time"].values, utc=True, errors="coerce")
-        values = sampled.values
-        if getattr(values, "ndim", 1) != 1:
-            values = values.reshape(-1)
+    point_ids = np.array([str(point["point_id"]) for point in points], dtype=object)
+    lats = np.array([float(point["lat"]) for point in points], dtype=np.float64)
+    lons = np.array([float(point["lon"]) for point in points], dtype=np.float64)
 
-        for ts, value in zip(times, values, strict=False):
-            if pd.isna(ts):
-                continue
-            rows.append(
-                {
-                    "time": ts,
-                    "point_id": str(point["point_id"]),
-                    "lat": float(point["lat"]),
-                    "lng": float(point["lon"]),
-                    "variable": var,
-                    "value": float(value) if pd.notna(value) else None,
-                }
-            )
+    sampled = da.sel(
+        latitude=xr.DataArray(lats, dims="point"),
+        longitude=xr.DataArray(lons, dims="point"),
+        method="nearest",
+    )
+    sampled = sampled.transpose("time", "point")
 
-    return pd.DataFrame(rows)
+    times = pd.to_datetime(sampled["time"].values, utc=True, errors="coerce")
+    values = np.asarray(sampled.values, dtype=np.float64)
+    if values.ndim == 1:
+        values = values.reshape(-1, 1)
+
+    valid_mask = ~pd.isna(times)
+    if not valid_mask.any():
+        return pd.DataFrame(columns=["time", "point_id", "lat", "lng", "variable", "value"])
+
+    times = times[valid_mask]
+    values = values[valid_mask, :]
+
+    rows = len(times)
+    cols = len(point_ids)
+
+    out = pd.DataFrame(
+        {
+            "time": np.repeat(times.to_numpy(), cols),
+            "point_id": np.tile(point_ids, rows),
+            "lat": np.tile(lats, rows),
+            "lng": np.tile(lons, rows),
+            "variable": var,
+            "value": values.reshape(rows * cols),
+        }
+    )
+    out["value"] = pd.to_numeric(out["value"], errors="coerce")
+    return out
 
 
 def map_precip_components(frame: pd.DataFrame) -> pd.DataFrame:
