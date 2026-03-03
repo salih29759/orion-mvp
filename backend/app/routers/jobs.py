@@ -13,6 +13,8 @@ from app.models import (
     Era5IngestResponse,
 )
 from app.schemas.common import BBox, BackfillRequest, JobStatusResponse
+from app.schemas.dem import DemProcessAcceptedResponse, DemProcessRequest, DemStatusResponse
+from app.services.dem_job_service import create_process as create_dem_process, get_status as get_dem_status
 from app.services.job_service import create_backfill_job, create_firms_ingest_job, get_job_status_payload
 from pipeline.era5_ingestion import (
     Era5Request,
@@ -103,6 +105,16 @@ async def firms_ingest(
         start_date=start_date,
         end_date=end_date,
     )
+
+
+@router.post("/dem/process", response_model=DemProcessAcceptedResponse, status_code=status.HTTP_202_ACCEPTED)
+async def dem_process(body: DemProcessRequest, _: str = Depends(verify_token)):
+    return create_dem_process(grid=body.grid)
+
+
+@router.get("/dem/status", response_model=DemStatusResponse)
+async def dem_status(_: str = Depends(verify_token)):
+    return get_dem_status()
 
 
 @router.get("/{job_id}", response_model=JobStatusResponse, summary="Get asynchronous ERA5/FIRMS job status")

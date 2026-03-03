@@ -197,6 +197,28 @@ class BackfillProgressORM(Base):
     run_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
 
 
+class DemJobRunORM(Base):
+    __tablename__ = "dem_job_runs"
+
+    run_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    include_grid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    progress_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    province_gcs_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    grid_gcs_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+        index=True,
+    )
+
+
 class ExportJobORM(Base):
     __tablename__ = "export_jobs"
 
