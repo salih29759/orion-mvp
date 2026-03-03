@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     daily_backfill_days: int = 2
     cdsapi_url: str = "https://cds.climate.copernicus.eu/api"
     cdsapi_key: str | None = None
+    adsapi_url: str = "https://ads.atmosphere.copernicus.eu/api"
+    adsapi_key: str | None = None
     cds_dataset: str = "reanalysis-era5-single-levels"
     cds_variable: str = "2m_temperature"
     cds_area_north: float = 42.5

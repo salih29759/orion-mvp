@@ -197,6 +197,27 @@ class BackfillProgressORM(Base):
     run_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
 
 
+class CamsBackfillProgressORM(Base):
+    __tablename__ = "cams_backfill_progress"
+    __table_args__ = (UniqueConstraint("run_id", "month", name="uq_cams_backfill_run_month"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    month: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rows_written: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duration_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class ExportJobORM(Base):
     __tablename__ = "export_jobs"
 

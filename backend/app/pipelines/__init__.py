@@ -1,0 +1,1 @@
+"""Application-native ingestion pipelines."""
