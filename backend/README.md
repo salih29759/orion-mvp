@@ -320,6 +320,36 @@ curl -X POST "https://orion-api-126886725893.europe-west1.run.app/cron/firms/dai
   -H "x-cron-secret: $CRON_SECRET"
 ```
 
+## BigQuery External Feature Index
+
+This index keeps feature parquet files queryable in BigQuery through external tables (no data copy).
+
+Authenticate with ADC:
+
+```bash
+gcloud auth application-default login
+gcloud config set project <PROJECT_ID>
+```
+
+Run the ops tool:
+
+```bash
+cd backend
+export GCP_PROJECT_ID=<PROJECT_ID>
+export ERA5_GCS_BUCKET=<BUCKET>
+export BQ_DATASET_ID=orion_features
+python ops/bq_external_tables.py plan
+python ops/bq_external_tables.py apply
+python ops/bq_external_tables.py sanity
+```
+
+Optional `bq` verification:
+
+```bash
+bq ls --project_id "$GCP_PROJECT_ID" "$GCP_PROJECT_ID:orion_features"
+bq query --use_legacy_sql=false 'SELECT COUNT(*) FROM `'"$GCP_PROJECT_ID"'.orion_features.openmeteo_daily`'
+```
+
 ## CDS / ERA5 smoke test
 
 After adding `CDSAPI_KEY`, run:
@@ -372,6 +402,9 @@ Check latest run:
 - `CDS_AREA_NORTH/WEST/SOUTH/EAST` (optional bounding box for test request)
 - `ERA5_GCS_BUCKET` (required for ERA5 ingest jobs)
 - `ERA5_MAX_CONCURRENT_JOBS` (optional, default `1`)
+- `GCP_PROJECT_ID` / `BQ_PROJECT_ID` (optional project id for BigQuery ops script)
+- `BQ_DATASET_ID` (optional, default `orion_features` for BigQuery external tables)
+- `BQ_LOCATION` (optional, auto-detected from bucket location when unset)
 
 ## Secret Manager setup (recommended)
 
