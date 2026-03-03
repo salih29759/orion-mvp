@@ -181,10 +181,17 @@ def extract_points_hourly(ds: xr.Dataset, points: list[dict[str, Any]], variable
 def map_precip_components(frame: pd.DataFrame) -> pd.DataFrame:
     out = frame.copy()
     cols = set(out.columns)
-    if "total_precipitation" not in cols and {"large_scale_precipitation", "convective_precipitation"}.issubset(cols):
-        out["total_precipitation"] = pd.to_numeric(out["large_scale_precipitation"], errors="coerce") + pd.to_numeric(
-            out["convective_precipitation"], errors="coerce"
-        )
+    if "total_precipitation" not in cols:
+        has_lsp = "large_scale_precipitation" in cols
+        has_cp = "convective_precipitation" in cols
+        if has_lsp and has_cp:
+            out["total_precipitation"] = pd.to_numeric(out["large_scale_precipitation"], errors="coerce") + pd.to_numeric(
+                out["convective_precipitation"], errors="coerce"
+            )
+        elif has_lsp:
+            out["total_precipitation"] = pd.to_numeric(out["large_scale_precipitation"], errors="coerce")
+        elif has_cp:
+            out["total_precipitation"] = pd.to_numeric(out["convective_precipitation"], errors="coerce")
     return out
 
 
@@ -196,6 +203,16 @@ def aggregate_daily_features(hourly: pd.DataFrame) -> pd.DataFrame:
     frame["time"] = pd.to_datetime(frame["time"], utc=True, errors="coerce").dt.tz_convert(None)
     frame = frame.dropna(subset=["time"])
     frame["date"] = frame["time"].dt.date
+
+    for col in (
+        "2m_temperature",
+        "total_precipitation",
+        "10m_u_component_of_wind",
+        "10m_v_component_of_wind",
+        "volumetric_soil_water_layer_1",
+    ):
+        if col not in frame.columns:
+            frame[col] = np.nan
 
     if "2m_temperature" in frame:
         temp = pd.to_numeric(frame["2m_temperature"], errors="coerce")
