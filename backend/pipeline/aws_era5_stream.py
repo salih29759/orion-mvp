@@ -120,8 +120,6 @@ def pick_data_var(ds: xr.Dataset) -> str:
 def extract_points_hourly(ds: xr.Dataset, points: list[dict[str, Any]], variable_name: str | None = None) -> pd.DataFrame:
     var = variable_name or pick_data_var(ds)
     da = ds[var]
-    if "time" not in da.coords:
-        raise RuntimeError("dataset is missing time coordinate")
     if not points:
         return pd.DataFrame(columns=["time", "point_id", "lat", "lng", "variable", "value"])
 
@@ -134,12 +132,27 @@ def extract_points_hourly(ds: xr.Dataset, points: list[dict[str, Any]], variable
         longitude=xr.DataArray(lons, dims="point"),
         method="nearest",
     )
-    sampled = sampled.transpose("time", "point")
-
-    times = pd.to_datetime(sampled["time"].values, utc=True, errors="coerce")
-    values = np.asarray(sampled.values, dtype=np.float64)
-    if values.ndim == 1:
-        values = values.reshape(-1, 1)
+    if "time" in sampled.dims or "time" in sampled.coords:
+        sampled = sampled.transpose("time", "point")
+        times = pd.to_datetime(sampled["time"].values, utc=True, errors="coerce")
+        values = np.asarray(sampled.values, dtype=np.float64)
+        if values.ndim == 1:
+            values = values.reshape(-1, 1)
+    elif "forecast_initial_time" in sampled.dims and "forecast_hour" in sampled.dims:
+        sampled = sampled.transpose("forecast_initial_time", "forecast_hour", "point")
+        initial = pd.to_datetime(sampled["forecast_initial_time"].values, utc=True, errors="coerce")
+        lead_values = sampled["forecast_hour"].values
+        if np.issubdtype(np.asarray(lead_values).dtype, np.timedelta64):
+            lead = pd.to_timedelta(lead_values)
+        else:
+            lead = pd.to_timedelta(pd.to_numeric(lead_values, errors="coerce"), unit="h")
+        initial_ns = initial.tz_convert(None).to_numpy(dtype="datetime64[ns]")
+        lead_ns = lead.to_numpy(dtype="timedelta64[ns]")
+        times_grid = initial_ns[:, None] + lead_ns[None, :]
+        times = pd.to_datetime(times_grid.reshape(-1), utc=True, errors="coerce")
+        values = np.asarray(sampled.values, dtype=np.float64).reshape(-1, len(point_ids))
+    else:
+        raise RuntimeError(f"dataset is missing time coordinates for variable={var}; dims={dict(da.sizes)}")
 
     valid_mask = ~pd.isna(times)
     if not valid_mask.any():
