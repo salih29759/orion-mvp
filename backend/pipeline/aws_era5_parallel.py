@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed as futures_as_completed
 from datetime import date, datetime, timezone
 import json
 import time
@@ -15,11 +16,11 @@ from app.orm import BackfillProgressORM
 from pipeline.aws_era5_ingestion import process_single_month_features
 
 try:
-    from dask.distributed import Client, LocalCluster, as_completed
+    from dask.distributed import Client, LocalCluster, as_completed as dask_as_completed
 except Exception:  # noqa: BLE001
     Client = None  # type: ignore[assignment]
     LocalCluster = None  # type: ignore[assignment]
-    as_completed = None  # type: ignore[assignment]
+    dask_as_completed = None  # type: ignore[assignment]
 
 DEFAULT_VARIABLES = [
     "2m_temperature",
@@ -184,9 +185,6 @@ def run_parallel_backfill(
     force: bool = False,
     gcs_bucket: str | None = None,
 ) -> dict:
-    if Client is None or LocalCluster is None or as_completed is None:
-        raise RuntimeError("dask[distributed] is required for run_parallel_backfill")
-
     start_date = _month_start(start)
     end_date = _month_start(end)
     run_id = run_id or f"awsbf_{uuid4().hex[:12]}"
@@ -207,40 +205,72 @@ def run_parallel_backfill(
         write_progress_json(bucket=bucket, payload=final_payload)
         return final_payload
 
-    cluster = LocalCluster(
-        n_workers=n_workers,
-        threads_per_worker=1,
-        memory_limit="2GB",
-    )
-    client = Client(cluster)
     last_progress_flush = time.time()
     results: list[dict] = []
+    month_isos = [m.strftime("%Y-%m-01") for m in pending]
 
-    try:
-        futures = client.map(
-            _process_month_worker,
-            [m.strftime("%Y-%m-01") for m in pending],
-            points_set=points_set,
-            variables=variables,
-            run_id=run_id,
-            processing_mode=processing_mode,
-        )
+    used_thread_fallback = False
+    if Client is not None and LocalCluster is not None and dask_as_completed is not None:
+        try:
+            cluster = LocalCluster(
+                n_workers=n_workers,
+                threads_per_worker=1,
+                memory_limit="2GB",
+            )
+            client = Client(cluster)
+            try:
+                futures = client.map(
+                    _process_month_worker,
+                    month_isos,
+                    points_set=points_set,
+                    variables=variables,
+                    run_id=run_id,
+                    processing_mode=processing_mode,
+                )
 
-        for future in as_completed(futures):
-            result = future.result()
-            results.append(result)
-            now = time.time()
-            if now - last_progress_flush >= 600:
-                payload = _build_progress_payload(run_id=run_id, start=start_date, end=end_date, started_at=progress_started)
-                write_progress_json(bucket=bucket, payload=payload)
-                last_progress_flush = now
+                for future in dask_as_completed(futures):
+                    result = future.result()
+                    results.append(result)
+                    now = time.time()
+                    if now - last_progress_flush >= 600:
+                        payload = _build_progress_payload(run_id=run_id, start=start_date, end=end_date, started_at=progress_started)
+                        write_progress_json(bucket=bucket, payload=payload)
+                        last_progress_flush = now
+            finally:
+                client.close()
+                cluster.close()
+        except Exception as exc:  # noqa: BLE001
+            # Keep the run alive even if Dask graph serialization fails on this host.
+            print(f"[aws_era5_parallel] dask_failed_fallback_to_threads error={exc}")
+            used_thread_fallback = True
+    else:
+        used_thread_fallback = True
 
-    finally:
-        client.close()
-        cluster.close()
+    if used_thread_fallback:
+        with ThreadPoolExecutor(max_workers=max(1, n_workers)) as ex:
+            futures = [
+                ex.submit(
+                    _process_month_worker,
+                    month_iso,
+                    points_set=points_set,
+                    variables=variables,
+                    run_id=run_id,
+                    processing_mode=processing_mode,
+                )
+                for month_iso in month_isos
+            ]
+            for fut in futures_as_completed(futures):
+                result = fut.result()
+                results.append(result)
+                now = time.time()
+                if now - last_progress_flush >= 600:
+                    payload = _build_progress_payload(run_id=run_id, start=start_date, end=end_date, started_at=progress_started)
+                    write_progress_json(bucket=bucket, payload=payload)
+                    last_progress_flush = now
 
     final_payload = _build_progress_payload(run_id=run_id, start=start_date, end=end_date, started_at=progress_started)
     final_payload["results"] = results
+    final_payload["executor"] = "threads" if used_thread_fallback else "dask"
     write_progress_json(bucket=bucket, payload=final_payload)
     return final_payload
 
