@@ -242,6 +242,40 @@ curl -X POST "$BASE_URL/cron/aws-era5/monthly-update" \
   -H "x-cron-secret: $CRON_SECRET"
 ```
 
+## Sentinel Hub Monthly Pipeline (Sentinel-2 L2A: NDVI/NBR/BAI)
+
+Backfill monthly Sentinel-derived indices:
+
+```bash
+curl -X POST "$BASE_URL/jobs/sentinel/backfill" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start":"2019-01-01",
+    "end":"2019-12-31",
+    "concurrency":2,
+    "force":false
+  }'
+```
+
+Latest status:
+
+```bash
+curl -s "$BASE_URL/jobs/sentinel/status" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+Monthly cron trigger (accepts either `X-Cron-Secret` or `Authorization: Bearer <ORION_BACKEND_API_KEY>`):
+
+```bash
+curl -X POST "$BASE_URL/cron/sentinel/monthly" \
+  -H "x-cron-secret: $CRON_SECRET"
+```
+
+Output location:
+
+- `gs://$ERA5_GCS_BUCKET/features/monthly/sentinel_hub/year=YYYY/month=MM/part-0.parquet`
+
 Build monthly climatology from baseline:
 
 ```bash
@@ -320,6 +354,36 @@ curl -X POST "https://orion-api-126886725893.europe-west1.run.app/cron/firms/dai
   -H "x-cron-secret: $CRON_SECRET"
 ```
 
+## BigQuery External Feature Index
+
+This index keeps feature parquet files queryable in BigQuery through external tables (no data copy).
+
+Authenticate with ADC:
+
+```bash
+gcloud auth application-default login
+gcloud config set project <PROJECT_ID>
+```
+
+Run the ops tool:
+
+```bash
+cd backend
+export GCP_PROJECT_ID=<PROJECT_ID>
+export ERA5_GCS_BUCKET=<BUCKET>
+export BQ_DATASET_ID=orion_features
+python ops/bq_external_tables.py plan
+python ops/bq_external_tables.py apply
+python ops/bq_external_tables.py sanity
+```
+
+Optional `bq` verification:
+
+```bash
+bq ls --project_id "$GCP_PROJECT_ID" "$GCP_PROJECT_ID:orion_features"
+bq query --use_legacy_sql=false 'SELECT COUNT(*) FROM `'"$GCP_PROJECT_ID"'.orion_features.openmeteo_daily`'
+```
+
 ## CDS / ERA5 smoke test
 
 After adding `CDSAPI_KEY`, run:
@@ -372,6 +436,14 @@ Check latest run:
 - `CDS_AREA_NORTH/WEST/SOUTH/EAST` (optional bounding box for test request)
 - `ERA5_GCS_BUCKET` (required for ERA5 ingest jobs)
 - `ERA5_MAX_CONCURRENT_JOBS` (optional, default `1`)
+- `GCP_PROJECT_ID` / `BQ_PROJECT_ID` (optional project id for BigQuery ops script)
+- `BQ_DATASET_ID` (optional, default `orion_features` for BigQuery external tables)
+- `BQ_LOCATION` (optional, auto-detected from bucket location when unset)
+- `SENTINEL_HUB_CLIENT_ID` (required for Sentinel Hub ingestion)
+- `SENTINEL_HUB_CLIENT_SECRET` (required for Sentinel Hub ingestion)
+- `SENTINEL_HUB_TOKEN_URL` (optional, default `https://services.sentinel-hub.com/oauth/token`)
+- `SENTINEL_BBOX_HALF_SIZE_DEG` (optional, default `0.125`)
+- `SENTINEL_RESOLUTION_M` (optional, default `250`)
 
 ## Secret Manager setup (recommended)
 

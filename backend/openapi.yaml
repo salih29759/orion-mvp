@@ -22,6 +22,7 @@ tags:
   - name: Notifications
   - name: FIRMS
   - name: AWS ERA5
+  - name: Sentinel Hub
 
 components:
   securitySchemes:
@@ -484,6 +485,70 @@ components:
             type: string
             nullable: true
 
+    SentinelBackfillRequest:
+      type: object
+      required: [start, end]
+      properties:
+        start:
+          type: string
+          format: date
+          example: "2019-01-01"
+        end:
+          type: string
+          format: date
+          example: "2019-12-31"
+        concurrency:
+          type: integer
+          minimum: 1
+          maximum: 4
+          default: 2
+        force:
+          type: boolean
+          default: false
+
+    SentinelBackfillAcceptedResponse:
+      type: object
+      required: [run_id, total_months]
+      properties:
+        run_id:
+          type: string
+          example: sentinel_abc123def456
+        total_months:
+          type: integer
+          example: 12
+
+    SentinelBackfillStatusResponse:
+      type: object
+      required: [total_months, completed, failed, running, percent_done, failed_months]
+      properties:
+        run_id:
+          type: string
+          nullable: true
+          example: sentinel_abc123def456
+        total_months:
+          type: integer
+          example: 12
+        completed:
+          type: integer
+          example: 9
+        failed:
+          type: integer
+          example: 1
+        running:
+          type: integer
+          example: 2
+        percent_done:
+          type: number
+          format: float
+          example: 83.33
+        last_updated:
+          type: string
+          format: date-time
+          nullable: true
+        failed_months:
+          type: array
+          items: { type: string }
+
     ClimatologyBuildRequest:
       type: object
       required: [version, baseline_start, baseline_end, level]
@@ -749,6 +814,58 @@ paths:
                 $ref: "#/components/schemas/JobStatusResponse"
         "400":
           description: Bad request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /jobs/sentinel/backfill:
+    post:
+      tags: [Sentinel Hub]
+      summary: Start Sentinel-2 L2A monthly NDVI/NBR/BAI backfill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SentinelBackfillRequest"
+      responses:
+        "202":
+          description: Backfill accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SentinelBackfillAcceptedResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /jobs/sentinel/status:
+    get:
+      tags: [Sentinel Hub]
+      summary: Get latest Sentinel monthly backfill run status
+      responses:
+        "200":
+          description: Sentinel backfill status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SentinelBackfillStatusResponse"
+
+  /cron/sentinel/monthly:
+    post:
+      tags: [Sentinel Hub]
+      summary: Trigger Sentinel monthly ingest for the previous completed month
+      responses:
+        "200":
+          description: Triggered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SentinelBackfillAcceptedResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }

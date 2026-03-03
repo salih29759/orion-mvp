@@ -197,6 +197,27 @@ class BackfillProgressORM(Base):
     run_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
 
 
+class SentinelBackfillProgressORM(Base):
+    __tablename__ = "sentinel_backfill_progress"
+    __table_args__ = (UniqueConstraint("run_id", "year", "month", name="uq_sentinel_backfill_run_month"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    month: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued", index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rows_written: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class ExportJobORM(Base):
     __tablename__ = "export_jobs"
 

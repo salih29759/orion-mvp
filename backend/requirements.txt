@@ -7,8 +7,11 @@ sqlalchemy==2.0.36
 alembic==1.14.0
 psycopg[binary]==3.2.3
 requests==2.32.3
+sentinelhub==3.11.4
+tifffile==2025.10.4
 cdsapi==0.7.7
 google-cloud-storage==2.18.2
+google-cloud-bigquery==3.27.0
 boto3==1.35.81
 s3fs==2025.2.0
 fsspec[gcs]==2025.2.0

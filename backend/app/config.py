@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     aws_era5_max_concurrent_downloads: int = 3
     aws_era5_mode_default: str = "points"
     aws_era5_points_set_default: str = "assets+provinces"
+    sentinel_hub_client_id: str | None = None
+    sentinel_hub_client_secret: str | None = None
+    sentinel_hub_token_url: str = "https://services.sentinel-hub.com/oauth/token"
+    sentinel_bbox_half_size_deg: float = 0.125
+    sentinel_resolution_m: int = 250
     app_env: str = "development"
 
 
