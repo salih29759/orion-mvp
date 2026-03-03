@@ -296,6 +296,46 @@ def ensure_ops_schema(db: Session) -> None:
         )
         """,
         "CREATE INDEX IF NOT EXISTS ix_aws_era5_catalog_runs_status ON aws_era5_catalog_runs(status)",
+        """
+        CREATE TABLE IF NOT EXISTS glofas_backfill_jobs (
+            job_id VARCHAR(64) PRIMARY KEY,
+            request_signature VARCHAR(64) NOT NULL UNIQUE,
+            status VARCHAR(16) NOT NULL DEFAULT 'queued',
+            start_date DATE NOT NULL,
+            end_date DATE NOT NULL,
+            effective_end_date DATE NOT NULL,
+            concurrency INTEGER NOT NULL DEFAULT 2,
+            months_total INTEGER NOT NULL DEFAULT 0,
+            months_success INTEGER NOT NULL DEFAULT 0,
+            months_failed INTEGER NOT NULL DEFAULT 0,
+            baseline_ready BOOLEAN NOT NULL DEFAULT FALSE,
+            baseline_gcs_uri TEXT NULL,
+            error TEXT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at TIMESTAMPTZ NULL,
+            updated_at TIMESTAMPTZ NULL,
+            finished_at TIMESTAMPTZ NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_glofas_backfill_jobs_status ON glofas_backfill_jobs(status)",
+        """
+        CREATE TABLE IF NOT EXISTS glofas_backfill_items (
+            id SERIAL PRIMARY KEY,
+            job_id VARCHAR(64) NOT NULL REFERENCES glofas_backfill_jobs(job_id) ON DELETE CASCADE,
+            month_label VARCHAR(7) NOT NULL,
+            status VARCHAR(16) NOT NULL DEFAULT 'queued',
+            rows_written INTEGER NOT NULL DEFAULT 0,
+            output_gcs_uri TEXT NULL,
+            error TEXT NULL,
+            started_at TIMESTAMPTZ NULL,
+            finished_at TIMESTAMPTZ NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_glofas_backfill_job_month UNIQUE (job_id, month_label)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_glofas_backfill_items_job_id ON glofas_backfill_items(job_id)",
+        "CREATE INDEX IF NOT EXISTS ix_glofas_backfill_items_month_label ON glofas_backfill_items(month_label)",
+        "CREATE INDEX IF NOT EXISTS ix_glofas_backfill_items_status ON glofas_backfill_items(status)",
     ]
     for stmt in stmts:
         db.execute(text(stmt))

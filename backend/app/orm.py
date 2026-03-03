@@ -156,6 +156,46 @@ class Era5BackfillItemORM(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class GlofasBackfillJobORM(Base):
+    __tablename__ = "glofas_backfill_jobs"
+
+    job_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    request_signature: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True, default="queued")
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    effective_end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    concurrency: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
+    months_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    months_success: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    months_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    baseline_ready: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    baseline_gcs_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class GlofasBackfillItemORM(Base):
+    __tablename__ = "glofas_backfill_items"
+    __table_args__ = (UniqueConstraint("job_id", "month_label", name="uq_glofas_backfill_job_month"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("glofas_backfill_jobs.job_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    month_label: Mapped[str] = mapped_column(String(7), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued", index=True)
+    rows_written: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_gcs_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class AwsEra5ObjectORM(Base):
     __tablename__ = "aws_era5_objects"
     __table_args__ = (UniqueConstraint("bucket", "key", name="uq_aws_era5_bucket_key"),)
