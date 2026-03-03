@@ -223,6 +223,33 @@ def ensure_ops_schema(db: Session) -> None:
         "CREATE INDEX IF NOT EXISTS ix_firms_ingest_jobs_status ON firms_ingest_jobs(status)",
         "CREATE INDEX IF NOT EXISTS ix_firms_ingest_jobs_source ON firms_ingest_jobs(source)",
         """
+        CREATE TABLE IF NOT EXISTS openaq_ingest_jobs (
+            job_id VARCHAR(64) PRIMARY KEY,
+            request_signature VARCHAR(64) NOT NULL UNIQUE,
+            status VARCHAR(32) NOT NULL,
+            start_date DATE NOT NULL,
+            requested_end_date DATE NOT NULL,
+            effective_end_date DATE NOT NULL,
+            concurrency INTEGER NOT NULL DEFAULT 5,
+            months_total INTEGER NOT NULL DEFAULT 0,
+            months_completed INTEGER NOT NULL DEFAULT 0,
+            months_failed INTEGER NOT NULL DEFAULT 0,
+            stations_total INTEGER NOT NULL DEFAULT 0,
+            stations_processed INTEGER NOT NULL DEFAULT 0,
+            rows_written INTEGER NOT NULL DEFAULT 0,
+            api_requests INTEGER NOT NULL DEFAULT 0,
+            metadata_gcs_uri TEXT NULL,
+            progress_json TEXT NULL,
+            error TEXT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at TIMESTAMPTZ NULL,
+            finished_at TIMESTAMPTZ NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_openaq_ingest_jobs_request_signature ON openaq_ingest_jobs(request_signature)",
+        "CREATE INDEX IF NOT EXISTS ix_openaq_ingest_jobs_status ON openaq_ingest_jobs(status)",
+        "CREATE INDEX IF NOT EXISTS ix_openaq_ingest_jobs_created_at ON openaq_ingest_jobs(created_at)",
+        """
         CREATE TABLE IF NOT EXISTS fires (
             id BIGSERIAL PRIMARY KEY,
             time_utc TIMESTAMPTZ NOT NULL,

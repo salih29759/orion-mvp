@@ -20,6 +20,7 @@ from app.routers import (
     internal,
     jobs,
     notifications,
+    openaq,
     portfolio,
     portfolios,
     provinces,
@@ -94,5 +95,6 @@ app.include_router(provinces.router, prefix="/v1/risk", tags=["Risk"])
 app.include_router(alerts.router, prefix="/v1/alerts", tags=["Alerts"])
 app.include_router(portfolio.router, prefix="/v1/portfolio", tags=["Portfolio"])
 app.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
+app.include_router(openaq.router)
 app.include_router(internal.router, prefix="/internal", tags=["Internal"])
 app.include_router(era5_ops.router, prefix="/legacy", tags=["ERA5 Ops"])

@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     aws_era5_max_concurrent_downloads: int = 3
     aws_era5_mode_default: str = "points"
     aws_era5_points_set_default: str = "assets+provinces"
+    openaq_api_key: str | None = None
+    openaq_base_url: str = "https://api.openaq.org/v3"
+    openaq_requests_per_minute: int = 60
+    openaq_timeout_seconds: int = 60
+    openaq_daily_concurrency: int = 5
     app_env: str = "development"
 
 

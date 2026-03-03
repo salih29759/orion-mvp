@@ -21,6 +21,15 @@ from pipeline.firms_ingestion import (
     run_daily_firms_update,
     submit_firms_ingest,
 )
+from pipeline.openaq_pipeline import (
+    get_latest_openaq_job,
+    get_openaq_job,
+    openaq_job_to_status_payload,
+    run_daily_openaq_update,
+    start_openaq_background_job,
+    submit_openaq_backfill,
+    validate_openaq_runtime,
+)
 from pipeline.risk_scoring import build_climatology
 
 
@@ -236,6 +245,34 @@ def get_job_status_payload(job_id: str) -> dict:
             "children": [],
         }
 
+    openaq = get_openaq_job(job_id)
+    if openaq:
+        status_map = {
+            "queued": "queued",
+            "running": "running",
+            "completed": "success",
+            "completed_with_failures": "success_with_warnings",
+            "failed": "failed",
+        }
+        summary = openaq_job_to_status_payload(openaq)
+        return {
+            "job_id": openaq.job_id,
+            "status": status_map.get(openaq.status, "failed"),
+            "type": "openaq_ingest",
+            "created_at": openaq.created_at,
+            "updated_at": openaq.finished_at or openaq.started_at,
+            "progress": {
+                "months_total": summary["total_months"],
+                "months_completed": summary["completed"],
+                "months_failed": summary["failed"],
+                "rows_written": summary["rows_written"],
+                "stations_total": summary["stations_total"],
+                "stations_processed": summary["stations_processed"],
+                "warnings": summary["warnings"],
+            },
+            "children": [],
+        }
+
     job = get_job(job_id)
     if not job:
         raise ApiError(status_code=404, error_code="NOT_FOUND", message=f"Job '{job_id}' not found")
@@ -297,6 +334,89 @@ def run_firms_daily_update() -> dict:
         "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat(),
     }
+
+
+def create_openaq_backfill_job(*, start_date: date, end_date: date, concurrency: int) -> dict:
+    missing = validate_openaq_runtime()
+    if missing:
+        raise ApiError(status_code=503, error_code="CONFIG_ERROR", message=f"Missing env vars: {', '.join(missing)}")
+
+    try:
+        job_id, deduped, months_total = submit_openaq_backfill(start_date=start_date, end_date=end_date, concurrency=concurrency)
+    except ValueError as exc:
+        raise ApiError(status_code=422, error_code="VALIDATION_ERROR", message=str(exc)) from exc
+
+    if not deduped:
+        start_openaq_background_job(job_id)
+
+    job = get_openaq_job(job_id)
+    now = datetime.now(timezone.utc)
+    status_map = {
+        "queued": "queued",
+        "running": "running",
+        "completed": "success",
+        "completed_with_failures": "success_with_warnings",
+        "failed": "failed",
+    }
+    if job:
+        summary = openaq_job_to_status_payload(job)
+        status = status_map.get(job.status, "queued")
+        progress = {
+            "months_total": summary["total_months"],
+            "months_completed": summary["completed"],
+            "months_failed": summary["failed"],
+            "rows_written": summary["rows_written"],
+            "stations_total": summary["stations_total"],
+            "stations_processed": summary["stations_processed"],
+        }
+    else:
+        status = "queued"
+        progress = {"months_total": months_total, "months_completed": 0, "months_failed": 0}
+
+    return {
+        "job_id": job_id,
+        "status": status,
+        "type": "openaq_ingest",
+        "created_at": job.created_at if job else now,
+        "updated_at": (job.finished_at or job.started_at) if job else None,
+        "progress": progress,
+        "children": [],
+    }
+
+
+def get_openaq_status_payload() -> dict:
+    job = get_latest_openaq_job()
+    if not job:
+        return {
+            "run_id": None,
+            "status": "idle",
+            "total_months": 0,
+            "completed": 0,
+            "failed": 0,
+            "running": 0,
+            "pending": 0,
+            "rows_written": 0,
+            "requested_start": None,
+            "requested_end": None,
+            "effective_end": None,
+            "stations_total": 0,
+            "stations_processed": 0,
+            "metadata_gcs_uri": None,
+            "last_updated": None,
+            "recent_errors": [],
+            "warnings": {"skipped_non_ugm3": 0, "skipped_flagged_total": 0},
+        }
+    return openaq_job_to_status_payload(job)
+
+
+def run_openaq_daily_update() -> dict:
+    missing = validate_openaq_runtime()
+    if missing:
+        raise ApiError(status_code=503, error_code="CONFIG_ERROR", message=f"Missing env vars: {', '.join(missing)}")
+    try:
+        return run_daily_openaq_update()
+    except ValueError as exc:
+        raise ApiError(status_code=422, error_code="VALIDATION_ERROR", message=str(exc)) from exc
 
 
 def get_metrics_payload() -> dict:
