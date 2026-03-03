@@ -337,6 +337,28 @@ class FirmsIngestJobORM(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class NasaIngestJobORM(Base):
+    __tablename__ = "nasa_ingest_jobs"
+
+    job_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    request_signature: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    dataset: Mapped[str] = mapped_column(String(16), nullable=False, index=True)  # smap | modis
+    status: Mapped[str] = mapped_column(String(32), nullable=False, index=True, default="queued")
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    months_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    months_completed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    months_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rows_written: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    files_downloaded: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    files_written: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    progress_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class FireEventORM(Base):
     __tablename__ = "fires"
     __table_args__ = (

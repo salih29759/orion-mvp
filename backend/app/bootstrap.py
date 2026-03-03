@@ -225,7 +225,7 @@ def ensure_ops_schema(db: Session) -> None:
         """
         CREATE TABLE IF NOT EXISTS nasa_ingest_jobs (
             job_id VARCHAR(64) PRIMARY KEY,
-            request_signature VARCHAR(64) NOT NULL UNIQUE,
+            request_signature VARCHAR(64) NOT NULL,
             dataset VARCHAR(16) NOT NULL,
             status VARCHAR(32) NOT NULL,
             start_date DATE NOT NULL,
@@ -243,6 +243,7 @@ def ensure_ops_schema(db: Session) -> None:
             finished_at TIMESTAMPTZ NULL
         )
         """,
+        "CREATE INDEX IF NOT EXISTS ix_nasa_ingest_jobs_request_signature ON nasa_ingest_jobs(request_signature)",
         "CREATE INDEX IF NOT EXISTS ix_nasa_ingest_jobs_dataset ON nasa_ingest_jobs(dataset)",
         "CREATE INDEX IF NOT EXISTS ix_nasa_ingest_jobs_status ON nasa_ingest_jobs(status)",
         """

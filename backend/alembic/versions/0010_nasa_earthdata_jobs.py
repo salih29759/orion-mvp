@@ -36,13 +36,14 @@ def upgrade() -> None:
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("job_id"),
-        sa.UniqueConstraint("request_signature"),
     )
+    op.create_index(op.f("ix_nasa_ingest_jobs_request_signature"), "nasa_ingest_jobs", ["request_signature"], unique=False)
     op.create_index(op.f("ix_nasa_ingest_jobs_dataset"), "nasa_ingest_jobs", ["dataset"], unique=False)
     op.create_index(op.f("ix_nasa_ingest_jobs_status"), "nasa_ingest_jobs", ["status"], unique=False)
 
 
 def downgrade() -> None:
+    op.drop_index(op.f("ix_nasa_ingest_jobs_request_signature"), table_name="nasa_ingest_jobs")
     op.drop_index(op.f("ix_nasa_ingest_jobs_status"), table_name="nasa_ingest_jobs")
     op.drop_index(op.f("ix_nasa_ingest_jobs_dataset"), table_name="nasa_ingest_jobs")
     op.drop_table("nasa_ingest_jobs")
