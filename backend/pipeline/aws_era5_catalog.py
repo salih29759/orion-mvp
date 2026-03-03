@@ -87,16 +87,21 @@ def parse_aws_key(key: str) -> ParsedKey:
     return ParsedKey(dataset_group=group, variable=variable, year=year, month=month, day=day)
 
 
-def list_objects(prefix: str, *, max_keys: int = 1000) -> list[dict[str, Any]]:
+def list_objects(prefix: str, *, max_keys: int = 1000, start_after: str | None = None) -> list[dict[str, Any]]:
     s3 = _client()
     bucket = settings.aws_era5_bucket
     continuation: str | None = None
     out: list[dict[str, Any]] = []
 
     while True:
-        kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": min(1000, max_keys - len(out))}
+        remaining = max_keys - len(out)
+        if remaining <= 0:
+            break
+        kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": min(1000, remaining)}
         if continuation:
             kwargs["ContinuationToken"] = continuation
+        elif start_after:
+            kwargs["StartAfter"] = start_after
         resp = s3.list_objects_v2(**kwargs)
         for obj in resp.get("Contents", []):
             out.append(obj)
@@ -112,40 +117,75 @@ def list_objects(prefix: str, *, max_keys: int = 1000) -> list[dict[str, Any]]:
     return out
 
 
-def _upsert_object_row(*, bucket: str, key: str, size: int, etag: str | None, last_modified: datetime | None) -> None:
-    parsed = parse_aws_key(key)
+def _prefix_resume_key(prefix: str) -> str | None:
     with SessionLocal() as db:
-        existing = db.execute(
+        row = db.execute(
+            select(AwsEra5ObjectORM.key)
+            .where(
+                AwsEra5ObjectORM.bucket == settings.aws_era5_bucket,
+                AwsEra5ObjectORM.key.like(f"{prefix}%"),
+            )
+            .order_by(AwsEra5ObjectORM.key.desc())
+            .limit(1)
+        ).first()
+    return row[0] if row else None
+
+
+def _upsert_object_rows(*, bucket: str, rows: list[dict[str, Any]]) -> int:
+    if not rows:
+        return 0
+
+    keys = [str(obj.get("Key", "")) for obj in rows if obj.get("Key")]
+    if not keys:
+        return 0
+
+    upserted = 0
+    with SessionLocal() as db:
+        existing_rows = db.execute(
             select(AwsEra5ObjectORM).where(
                 AwsEra5ObjectORM.bucket == bucket,
-                AwsEra5ObjectORM.key == key,
+                AwsEra5ObjectORM.key.in_(keys),
             )
-        ).scalar_one_or_none()
-        if existing:
-            existing.size = int(size)
-            existing.etag = (etag or "").replace('"', "") or None
-            existing.last_modified = last_modified
-            existing.dataset_group = parsed.dataset_group
-            existing.variable = parsed.variable
-            existing.year = parsed.year
-            existing.month = parsed.month
-            existing.day = parsed.day
-        else:
-            db.add(
-                AwsEra5ObjectORM(
-                    bucket=bucket,
-                    key=key,
-                    size=int(size),
-                    etag=(etag or "").replace('"', "") or None,
-                    last_modified=last_modified,
-                    dataset_group=parsed.dataset_group,
-                    variable=parsed.variable,
-                    year=parsed.year,
-                    month=parsed.month,
-                    day=parsed.day,
+        ).scalars().all()
+        existing_by_key = {row.key: row for row in existing_rows}
+
+        for obj in rows:
+            key = str(obj.get("Key", ""))
+            if not key:
+                continue
+            parsed = parse_aws_key(key)
+            size = int(obj.get("Size", 0) or 0)
+            etag = (str(obj.get("ETag", "")) or "").replace('"', "") or None
+            last_modified = obj.get("LastModified")
+
+            existing = existing_by_key.get(key)
+            if existing:
+                existing.size = size
+                existing.etag = etag
+                existing.last_modified = last_modified
+                existing.dataset_group = parsed.dataset_group
+                existing.variable = parsed.variable
+                existing.year = parsed.year
+                existing.month = parsed.month
+                existing.day = parsed.day
+            else:
+                db.add(
+                    AwsEra5ObjectORM(
+                        bucket=bucket,
+                        key=key,
+                        size=size,
+                        etag=etag,
+                        last_modified=last_modified,
+                        dataset_group=parsed.dataset_group,
+                        variable=parsed.variable,
+                        year=parsed.year,
+                        month=parsed.month,
+                        day=parsed.day,
+                    )
                 )
-            )
+            upserted += 1
         db.commit()
+    return upserted
 
 
 def sync_catalog(*, prefixes: list[str] | None = None, max_keys_per_prefix: int = 2000) -> dict[str, Any]:
@@ -166,18 +206,17 @@ def sync_catalog(*, prefixes: list[str] | None = None, max_keys_per_prefix: int 
 
     scanned = 0
     error: str | None = None
+    resume_from: dict[str, str | None] = {}
     try:
         for prefix in prefixes:
-            objects = list_objects(prefix, max_keys=max_keys_per_prefix)
-            for obj in objects:
-                _upsert_object_row(
+            start_after = _prefix_resume_key(prefix)
+            resume_from[prefix] = start_after
+            objects = list_objects(prefix, max_keys=max_keys_per_prefix, start_after=start_after)
+            for i in range(0, len(objects), 500):
+                scanned += _upsert_object_rows(
                     bucket=settings.aws_era5_bucket,
-                    key=obj.get("Key", ""),
-                    size=int(obj.get("Size", 0) or 0),
-                    etag=obj.get("ETag"),
-                    last_modified=obj.get("LastModified"),
+                    rows=objects[i : i + 500],
                 )
-                scanned += 1
     except Exception as exc:  # noqa: BLE001
         error = str(exc)
         LOG.exception("aws_catalog_sync_failed run_id=%s error=%s", run_id, error)
@@ -196,6 +235,7 @@ def sync_catalog(*, prefixes: list[str] | None = None, max_keys_per_prefix: int 
         "status": "failed" if error else "success",
         "objects_scanned": scanned,
         "prefixes": prefixes,
+        "resume_from": resume_from,
         "error": error,
     }
 

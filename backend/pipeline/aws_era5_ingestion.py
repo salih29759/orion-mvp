@@ -270,9 +270,24 @@ def _cache_object_stream_to_gcs(*, key: str, variable: str, year: int, month: in
         src = s3.get_object(Bucket=settings.aws_era5_bucket, Key=key)["Body"]
         try:
             blob.metadata = {"source_etag": etag or ""}
-            blob.upload_from_file(src, rewind=False)
+            # Streaming uploads can timeout on large objects in Cloud Run; use a long timeout.
+            blob.upload_from_file(src, rewind=False, timeout=900)
+        except Exception as exc:  # noqa: BLE001
+            LOG.warning(
+                "aws_raw_stream_cache_failed key=%s error=%s fallback=download_mode",
+                key,
+                str(exc),
+            )
+            try:
+                src.close()
+            except Exception:  # noqa: BLE001
+                pass
+            return _cache_object_to_gcs(key=key, variable=variable, year=year, month=month)
         finally:
-            src.close()
+            try:
+                src.close()
+            except Exception:  # noqa: BLE001
+                pass
 
     return CachedObject(
         key=key,

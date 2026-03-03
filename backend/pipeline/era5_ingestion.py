@@ -421,6 +421,17 @@ def process_era5_job(job_id: str) -> None:
 
         try:
             process_aws_era5_job(job_id)
+        except Exception as exc:  # noqa: BLE001
+            LOG.exception("aws_era5_job_failed_uncaught job_id=%s error=%s", job_id, str(exc))
+            with SessionLocal() as db:
+                job = db.get(Era5IngestJobORM, job_id)
+                if job:
+                    job.status = "failed"
+                    job.error = str(exc)
+                    job.finished_at = datetime.now(timezone.utc)
+                    if job.started_at and job.finished_at:
+                        job.duration_seconds = (job.finished_at - job.started_at).total_seconds()
+                    db.commit()
         finally:
             kick_queued_jobs()
         return

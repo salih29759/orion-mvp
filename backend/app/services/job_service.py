@@ -116,6 +116,7 @@ def create_aws_catalog_sync_job(*, prefixes: list[str] | None, max_keys_per_pref
         "progress": {
             "objects_scanned": out["objects_scanned"],
             "prefixes": out["prefixes"],
+            "resume_from": out.get("resume_from", {}),
             "error": out.get("error"),
         },
         "children": [],

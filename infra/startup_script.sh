@@ -7,11 +7,12 @@ metadata() {
 }
 
 apt-get update
-apt-get install -y python3-pip git
+apt-get install -y python3-pip python3-venv git
 
 REPO_URL="$(metadata REPO_URL)"
 if [[ -z "${REPO_URL}" ]]; then
-  REPO_URL="https://github.com/replace-me/orion-mvp.git"
+  echo "REPO_URL metadata is missing; aborting startup." >&2
+  exit 1
 fi
 
 if [[ ! -d /opt/orion-backend/.git ]]; then
@@ -22,8 +23,10 @@ else
   git pull --ff-only
 fi
 
-pip3 install --upgrade pip
-pip3 install \
+python3 -m venv /opt/orion-venv
+source /opt/orion-venv/bin/activate
+pip install --upgrade pip
+pip install \
   s3fs \
   "fsspec[gcs]" \
   gcsfs \
@@ -56,9 +59,29 @@ export GCS_BUCKET="${GCS_BUCKET}"
 export BACKFILL_START="${BACKFILL_START}"
 export BACKFILL_END="${BACKFILL_END}"
 export N_WORKERS="${N_WORKERS}"
+export AWS_ERA5_BUCKET="${AWS_ERA5_BUCKET:-nsf-ncar-era5}"
+export AWS_ERA5_REGION="${AWS_ERA5_REGION:-us-west-2}"
+export AWS_ERA5_USE_UNSIGNED="${AWS_ERA5_USE_UNSIGNED:-true}"
+
+DATABASE_URL="$(metadata DATABASE_URL)"
+if [[ -n "${DATABASE_URL}" ]]; then
+  export DATABASE_URL="${DATABASE_URL}"
+fi
+
+INSTANCE_CONNECTION_NAME="$(metadata INSTANCE_CONNECTION_NAME)"
+if [[ -n "${INSTANCE_CONNECTION_NAME}" ]]; then
+  mkdir -p /cloudsql
+  curl -fsSL -o /usr/local/bin/cloud-sql-proxy \
+    "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.13.0/cloud-sql-proxy.linux.amd64"
+  chmod +x /usr/local/bin/cloud-sql-proxy
+  nohup /usr/local/bin/cloud-sql-proxy \
+    --unix-socket /cloudsql \
+    "${INSTANCE_CONNECTION_NAME}" \
+    >> /var/log/cloud-sql-proxy.log 2>&1 &
+fi
 
 cd /opt/orion-backend/backend
-nohup python3 -m aws_era5_parallel \
+nohup /opt/orion-venv/bin/python -m pipeline.aws_era5_parallel \
   --start "${BACKFILL_START}" \
   --end "${BACKFILL_END}" \
   --workers "${N_WORKERS}" \
