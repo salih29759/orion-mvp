@@ -197,6 +197,30 @@ class BackfillProgressORM(Base):
     run_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
 
 
+class NoaaBackfillProgressORM(Base):
+    __tablename__ = "noaa_backfill_progress"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    month: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rows_written: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stations_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stations_success: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stations_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    strong_wind_proxy_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duration_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class ExportJobORM(Base):
     __tablename__ = "export_jobs"
 

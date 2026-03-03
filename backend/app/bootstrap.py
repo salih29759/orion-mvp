@@ -90,6 +90,28 @@ def ensure_ops_schema(db: Session) -> None:
         "CREATE INDEX IF NOT EXISTS ix_era5_backfill_items_month_label ON era5_backfill_items(month_label)",
         "CREATE INDEX IF NOT EXISTS ix_era5_backfill_items_status ON era5_backfill_items(status)",
         """
+        CREATE TABLE IF NOT EXISTS noaa_backfill_progress (
+            id SERIAL PRIMARY KEY,
+            run_id VARCHAR(64) NOT NULL,
+            month DATE NOT NULL,
+            status VARCHAR(32) NOT NULL DEFAULT 'pending',
+            started_at TIMESTAMPTZ NULL,
+            completed_at TIMESTAMPTZ NULL,
+            error_msg TEXT NULL,
+            rows_written INTEGER NOT NULL DEFAULT 0,
+            stations_total INTEGER NOT NULL DEFAULT 0,
+            stations_success INTEGER NOT NULL DEFAULT 0,
+            stations_failed INTEGER NOT NULL DEFAULT 0,
+            strong_wind_proxy_used INTEGER NOT NULL DEFAULT 0,
+            duration_sec DOUBLE PRECISION NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_noaa_backfill_progress_run_id ON noaa_backfill_progress(run_id)",
+        "CREATE INDEX IF NOT EXISTS ix_noaa_backfill_progress_month ON noaa_backfill_progress(month)",
+        "CREATE INDEX IF NOT EXISTS ix_noaa_backfill_progress_status ON noaa_backfill_progress(status)",
+        "CREATE INDEX IF NOT EXISTS ix_noaa_backfill_progress_updated_at ON noaa_backfill_progress(updated_at)",
+        """
         CREATE TABLE IF NOT EXISTS export_jobs (
             export_id VARCHAR(64) PRIMARY KEY,
             portfolio_id VARCHAR(128) NOT NULL,
