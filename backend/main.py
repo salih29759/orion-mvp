@@ -13,6 +13,7 @@ from app.routers import (
     assets,
     aws_jobs,
     climatology,
+    earthquake_jobs,
     era5_ops,
     exports,
     firms,
@@ -90,6 +91,7 @@ app.include_router(climatology.router)
 app.include_router(assets.router)
 app.include_router(firms.router)
 app.include_router(aws_jobs.router)
+app.include_router(earthquake_jobs.router)
 app.include_router(provinces.router, prefix="/v1/risk", tags=["Risk"])
 app.include_router(alerts.router, prefix="/v1/alerts", tags=["Alerts"])
 app.include_router(portfolio.router, prefix="/v1/portfolio", tags=["Portfolio"])

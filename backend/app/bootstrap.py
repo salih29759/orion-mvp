@@ -223,6 +223,25 @@ def ensure_ops_schema(db: Session) -> None:
         "CREATE INDEX IF NOT EXISTS ix_firms_ingest_jobs_status ON firms_ingest_jobs(status)",
         "CREATE INDEX IF NOT EXISTS ix_firms_ingest_jobs_source ON firms_ingest_jobs(source)",
         """
+        CREATE TABLE IF NOT EXISTS earthquake_ingest_jobs (
+            job_id VARCHAR(64) PRIMARY KEY,
+            request_signature VARCHAR(64) NOT NULL,
+            status VARCHAR(32) NOT NULL,
+            start_date DATE NOT NULL,
+            end_date DATE NOT NULL,
+            rows_written INTEGER NOT NULL DEFAULT 0,
+            files_written INTEGER NOT NULL DEFAULT 0,
+            progress_json TEXT NULL,
+            error TEXT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at TIMESTAMPTZ NULL,
+            finished_at TIMESTAMPTZ NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_earthquake_ingest_jobs_status ON earthquake_ingest_jobs(status)",
+        "CREATE INDEX IF NOT EXISTS ix_earthquake_ingest_jobs_request_signature ON earthquake_ingest_jobs(request_signature)",
+        "CREATE INDEX IF NOT EXISTS ix_earthquake_ingest_jobs_created_at ON earthquake_ingest_jobs(created_at)",
+        """
         CREATE TABLE IF NOT EXISTS fires (
             id BIGSERIAL PRIMARY KEY,
             time_utc TIMESTAMPTZ NOT NULL,
