@@ -32,6 +32,8 @@ TURKEY_BBOX = {
 
 ACTIVE_OR_SUCCESS_STATUSES = {"queued", "running", "success", "success_with_warnings"}
 ACTIVE_STATUSES = {"queued", "running"}
+_USGS_RATE_LIMIT_LOCK = threading.Lock()
+_USGS_LAST_REQUEST_TS = 0.0
 
 
 @dataclass
@@ -63,6 +65,17 @@ class _DisjointSet:
         rb = self.find(b)
         if ra != rb:
             self.parent[rb] = ra
+
+
+def _respect_usgs_rate_limit() -> None:
+    global _USGS_LAST_REQUEST_TS
+    with _USGS_RATE_LIMIT_LOCK:
+        now = wall_time.monotonic()
+        elapsed = now - _USGS_LAST_REQUEST_TS
+        if elapsed < 1.0:
+            wall_time.sleep(1.0 - elapsed)
+            now = wall_time.monotonic()
+        _USGS_LAST_REQUEST_TS = now
 
 
 def _utc_now() -> datetime:
@@ -236,6 +249,7 @@ def fetch_usgs_events_for_day(*, day_value: date, min_magnitude: float, timeout_
     offset = 1
     with requests.Session() as session:
         while True:
+            _respect_usgs_rate_limit()
             params = {
                 "format": "geojson",
                 "starttime": start_dt.isoformat().replace("+00:00", "Z"),
@@ -259,7 +273,6 @@ def fetch_usgs_events_for_day(*, day_value: date, min_magnitude: float, timeout_
                 break
 
             offset += limit
-            wall_time.sleep(1.0)
 
     return out
 
